@@ -1,53 +1,59 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { User, UserRole } from '../../domain/entities/models';
+import { User } from '../../domain/entities/models';
 import { MOCK_BRANCHES } from '../../data/mock/mockData';
 
-const USER_PROFILES: Record<UserRole, User> = {
-  SUPER_ADMIN: {
+const INITIAL_USERS: User[] = [
+  {
     id: 'usr-sa',
-    name: 'Chief Executive Officer (CEO)',
+    name: 'Adebayo Folorunsho (CEO)',
     email: 'ceo@pharmcare.com',
     role: 'SUPER_ADMIN'
   },
-  REGIONAL_MANAGER: {
+  {
     id: 'usr-rm',
-    name: 'Lola Adebayo (Lagos Regional Manager)',
+    name: 'Dr. Lola Adebayo (Regional Manager)',
     email: 'l.adebayo@pharmcare.com',
     role: 'REGIONAL_MANAGER',
     assignedRegionIds: ['reg-lagos']
   },
-  ADMIN: {
+  {
     id: 'usr-ad',
     name: 'Dr. Chinedu Okafor (Ikeja Branch Lead)',
     email: 'c.okafor@pharmcare.com',
     role: 'ADMIN',
     branchId: 'br-ikeja'
   },
-  PHARMACIST: {
+  {
     id: 'usr-ph',
     name: 'Dr. Fatima Umar (Lekki Pharmacist)',
     email: 'f.umar@pharmcare.com',
     role: 'PHARMACIST',
     branchId: 'br-lekki'
   },
-  DISPENSER: {
+  {
     id: 'usr-dp',
     name: 'Kemi Balogun (Ikeja Dispenser)',
     email: 'k.balogun@pharmcare.com',
     role: 'DISPENSER',
     branchId: 'br-ikeja'
   }
-};
+];
 
 interface SessionContextType {
   currentUser: User;
-  currentRole: UserRole;
+  isAuthenticated: boolean;
   selectedRegionId: string | 'all';
   selectedOutletId: string | 'all';
-  changeRole: (role: UserRole) => void;
+  login: (email: string) => boolean;
+  logout: () => void;
   changeSelection: (regionId: string | 'all', outletId: string | 'all') => void;
   
-  // Custom access policies
+  // User Management Actions
+  users: User[];
+  createUser: (user: Omit<User, 'id'>) => void;
+  updateUser: (user: User) => void;
+  deleteUser: (id: string) => void;
+
   canManageUsers: boolean;
   isSyncing: boolean;
 }
@@ -55,35 +61,46 @@ interface SessionContextType {
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentRole, setCurrentRole] = useState<UserRole>('SUPER_ADMIN');
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | 'all'>('all');
   const [selectedOutletId, setSelectedOutletId] = useState<string | 'all'>('all');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const currentUser = useMemo(() => USER_PROFILES[currentRole], [currentRole]);
+  const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
 
-  // Fulfills user constraint: "regional manager(can create/modify new users)"
   const canManageUsers = useMemo(() => {
-    return currentRole === 'SUPER_ADMIN' || currentRole === 'REGIONAL_MANAGER';
-  }, [currentRole]);
+    return currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'REGIONAL_MANAGER';
+  }, [currentUser]);
 
-  const changeRole = useCallback((role: UserRole) => {
-    setCurrentRole(role);
-    const profile = USER_PROFILES[role];
+  const login = useCallback((email: string) => {
+    const profile = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!profile) return false;
+
+    setCurrentUser(profile);
     
-    if (role === 'SUPER_ADMIN') {
+    // Auto lock geographic region & outlet filters on login based on security clearance
+    if (profile.role === 'SUPER_ADMIN') {
       setSelectedRegionId('all');
       setSelectedOutletId('all');
-    } else if (role === 'REGIONAL_MANAGER') {
-      setSelectedRegionId('reg-lagos');
+    } else if (profile.role === 'REGIONAL_MANAGER') {
+      setSelectedRegionId(profile.assignedRegionIds?.[0] || 'reg-lagos');
       setSelectedOutletId('all');
     } else {
-      // Locked to branch
       const branchId = profile.branchId!;
-      const branch = MOCK_BRANCHES.find(b => b.id === branchId)!;
-      setSelectedRegionId(branch.regionId);
-      setSelectedOutletId(branchId);
+      const branch = MOCK_BRANCHES.find(b => b.id === branchId);
+      if (branch) {
+        setSelectedRegionId(branch.regionId);
+        setSelectedOutletId(branchId);
+      }
     }
+    return true;
+  }, [users]);
+
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    setSelectedRegionId('all');
+    setSelectedOutletId('all');
   }, []);
 
   const changeSelection = useCallback((regionId: string | 'all', outletId: string | 'all') => {
@@ -95,14 +112,36 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, 350);
   }, []);
 
+  const createUser = useCallback((userData: Omit<User, 'id'>) => {
+    const newUser: User = {
+      ...userData,
+      id: `usr-new-${Date.now()}`
+    };
+    setUsers(prev => [...prev, newUser]);
+  }, []);
+
+  const updateUser = useCallback((updatedUser: User) => {
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setCurrentUser(prev => prev && prev.id === updatedUser.id ? updatedUser : prev);
+  }, []);
+
+  const deleteUser = useCallback((id: string) => {
+    setUsers(prev => prev.filter(u => u.id !== id));
+  }, []);
+
   return (
     <SessionContext.Provider value={{
-      currentUser,
-      currentRole,
+      currentUser: currentUser as User, // Safe typecast since layout guarantees auth boundaries
+      isAuthenticated,
       selectedRegionId,
       selectedOutletId,
-      changeRole,
+      login,
+      logout,
       changeSelection,
+      users,
+      createUser,
+      updateUser,
+      deleteUser,
       canManageUsers,
       isSyncing
     }}>
@@ -116,4 +155,3 @@ export const useSession = () => {
   if (!context) throw new Error("useSession must be used within SessionProvider");
   return context;
 };
-export { USER_PROFILES };

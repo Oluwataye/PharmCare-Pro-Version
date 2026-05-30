@@ -4,6 +4,7 @@ import { useInventoryUseCase } from './application/use-cases/useInventoryUseCase
 import { useTransferUseCase } from './application/use-cases/useTransferUseCase';
 import { useStaffUseCase } from './application/use-cases/useStaffUseCase';
 
+import { AuthPage } from './components/multi-outlet/AuthPage';
 import { OutletSelector } from './components/multi-outlet/OutletSelector';
 import { ConsolidatedMetricsGrid } from './components/multi-outlet/ConsolidatedMetricsGrid';
 import { ActiveStaffMonitor } from './components/multi-outlet/ActiveStaffMonitor';
@@ -19,16 +20,16 @@ import { formatNaira } from './lib/utils';
 import { MOCK_BRANCHES } from './data/mock/mockData';
 import { 
   Shield, ArrowRightLeft, RotateCw, PlusCircle, 
-  CheckCircle, XCircle, Info, Database 
+  CheckCircle, XCircle, Info, Database, LogOut 
 } from 'lucide-react';
 
 const App: React.FC = () => {
   const {
     currentUser,
-    currentRole,
+    isAuthenticated,
     selectedRegionId,
     selectedOutletId,
-    changeRole,
+    logout,
     isSyncing
   } = useSession();
 
@@ -57,6 +58,10 @@ const App: React.FC = () => {
     return 'Entire Enterprise (Consolidated)';
   }, [selectedRegionId, selectedOutletId]);
 
+  if (!isAuthenticated || !currentUser) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none custom-scrollbar">
       
@@ -75,29 +80,26 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* User Simulator Console */}
+        {/* Secure User Navigation Console */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-slate-100/50 text-xxs text-muted-foreground uppercase font-semibold">
             <Shield className="h-3.5 w-3.5 text-primary" />
-            <span>Active Login:</span>
-            <span className="text-slate-800 font-bold">{currentUser.name} ({currentUser.role.replace('_', ' ')})</span>
+            <span>Active User:</span>
+            <span className="text-slate-800 font-bold">{currentUser.name}</span>
+            <Badge variant={currentUser.role === 'SUPER_ADMIN' ? 'destructive' : currentUser.role === 'REGIONAL_MANAGER' ? 'info' : 'primary'} className="text-[8px] tracking-wider py-0 px-1 font-mono uppercase scale-95 shrink-0">
+              {currentUser.role.replace('_', ' ')}
+            </Badge>
           </div>
 
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg border border-border">
-            {(['SUPER_ADMIN', 'REGIONAL_MANAGER', 'ADMIN', 'PHARMACIST', 'DISPENSER'] as const).map((role) => (
-              <button
-                key={role}
-                onClick={() => changeRole(role)}
-                className={`px-2.5 py-1 rounded text-xxs font-semibold uppercase tracking-wider transition-all duration-250 ${
-                  currentRole === role
-                    ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-slate-200/50'
-                }`}
-              >
-                {role.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={logout} 
+            className="gap-1.5 h-8 text-[10px] uppercase tracking-wider text-destructive hover:bg-destructive/10 border-destructive/20 bg-card"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Log Out
+          </Button>
 
           <Button 
             variant="outline" 

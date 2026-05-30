@@ -10,16 +10,7 @@ import { User, UserRole } from '../../domain/entities/models';
 import { UserPlus, UserCog, Check } from 'lucide-react';
 
 export const UserManagementPanel: React.FC = () => {
-  const { canManageUsers, currentUser } = useSession();
-  
-  // Simulated initial users list
-  const [users, setUsers] = useState<User[]>([
-    { id: 'usr-1', name: 'Adebayo Folorunsho', email: 'a.folorunsho@pharmcare.com', role: 'SUPER_ADMIN' },
-    { id: 'usr-2', name: 'Dr. Lola Adebayo', email: 'l.adebayo@pharmcare.com', role: 'REGIONAL_MANAGER', assignedRegionIds: ['reg-lagos'] },
-    { id: 'usr-3', name: 'Dr. Chinedu Okafor', email: 'c.okafor@pharmcare.com', role: 'ADMIN', branchId: 'br-ikeja' },
-    { id: 'usr-4', name: 'Dr. Fatima Umar', email: 'f.umar@pharmcare.com', role: 'PHARMACIST', branchId: 'br-lekki' },
-    { id: 'usr-5', name: 'Kemi Balogun', email: 'k.balogun@pharmcare.com', role: 'DISPENSER', branchId: 'br-ikeja' }
-  ]);
+  const { canManageUsers, currentUser, users, createUser, updateUser, deleteUser } = useSession();
 
   // Form states
   const [name, setName] = useState('');
@@ -30,7 +21,7 @@ export const UserManagementPanel: React.FC = () => {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [notification, setNotification] = useState('');
 
-  if (!canManageUsers) return null;
+  if (!canManageUsers || !currentUser) return null;
 
   const handleAddOrEditUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,27 +29,25 @@ export const UserManagementPanel: React.FC = () => {
 
     if (editingUserId) {
       // Modify existing user
-      setUsers(prev => prev.map(u => u.id === editingUserId ? {
-        ...u,
+      updateUser({
+        id: editingUserId,
         name,
         email,
         role,
         branchId: role === 'SUPER_ADMIN' || role === 'REGIONAL_MANAGER' ? undefined : branchId,
         assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined
-      } : u));
+      });
       setNotification(`Successfully modified user: ${name}`);
       setEditingUserId(null);
     } else {
       // Create new user
-      const newUser: User = {
-        id: `usr-new-${Date.now()}`,
+      createUser({
         name,
         email,
         role,
         branchId: role === 'SUPER_ADMIN' || role === 'REGIONAL_MANAGER' ? undefined : branchId,
         assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined
-      };
-      setUsers(prev => [...prev, newUser]);
+      });
       setNotification(`Successfully registered new user: ${name}`);
     }
 
@@ -82,7 +71,7 @@ export const UserManagementPanel: React.FC = () => {
   const handleDeleteUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
-    setUsers(prev => prev.filter(u => u.id !== userId));
+    deleteUser(userId);
     setNotification(`Successfully deleted user: ${user.name}`);
     setTimeout(() => setNotification(''), 3000);
   };
