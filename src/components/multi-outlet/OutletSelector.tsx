@@ -1,19 +1,20 @@
 import React, { useMemo } from 'react';
-import { useMultiOutlet } from '../../contexts/MultiOutletContext';
+import { useSession } from '../../application/context/SessionContext';
+import { MOCK_REGIONS, MOCK_BRANCHES } from '../../data/mock/mockData';
 import { Select, SelectOption } from '../ui/Select';
 import { MapPin, ShieldAlert } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 
 export const OutletSelector: React.FC = () => {
   const { 
-    regions, 
-    branches, 
     currentUser, 
     selectedRegionId, 
     selectedOutletId, 
     changeSelection,
     isSyncing 
-  } = useMultiOutlet();
+  } = useSession();
+  const regions = MOCK_REGIONS;
+  const branches = MOCK_BRANCHES;
 
   // 1. Build Region Dropdown Options depending on User Role
   const regionOptions = useMemo((): SelectOption[] => {
@@ -107,7 +108,7 @@ export const OutletSelector: React.FC = () => {
   const isSelectorDisabled = currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'REGIONAL_MANAGER';
 
   return (
-    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-border/40 bg-slate-950/40 backdrop-blur-md pulse-glow">
+    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-border/40 bg-card shadow-sm pulse-glow">
       <div className="flex items-center gap-3">
         <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
           <MapPin className="h-5 w-5" />

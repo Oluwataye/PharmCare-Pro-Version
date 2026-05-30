@@ -1,0 +1,57 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSession } from '../context/SessionContext';
+import { InventoryItem } from '../../domain/entities/models';
+import { MockInventoryRepository } from '../../data/mock/inventoryRepo';
+import { MOCK_BRANCHES } from '../../data/mock/mockData';
+
+// Shared instance of repo for consistency
+const inventoryRepo = new MockInventoryRepository();
+
+export const useInventoryUseCase = () => {
+  const { selectedRegionId, selectedOutletId, isSyncing } = useSession();
+  const [rawInventory, setRawInventory] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchInventory = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await inventoryRepo.getInventory();
+      setRawInventory(data);
+    } catch (err) {
+      console.error("Failed to load inventory:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Sync inventory whenever selector changes or is refreshed
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory, selectedRegionId, selectedOutletId]);
+
+  // Compute scoped/filtered inventory
+  const scopedInventory = useMemo(() => {
+    let list = rawInventory;
+    if (selectedOutletId !== 'all') {
+      list = rawInventory.filter(i => i.branchId === selectedOutletId);
+    } else if (selectedRegionId !== 'all') {
+      const regionBranchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      list = rawInventory.filter(i => regionBranchIds.includes(i.branchId));
+    }
+    // Sort so depleted stock items bubble up to prompt action
+    return [...list].sort((a, b) => a.quantity - b.quantity);
+  }, [rawInventory, selectedRegionId, selectedOutletId]);
+
+  // Automated Central Warehouse backup query
+  const checkWarehouseBackup = useCallback(async (sku: string): Promise<InventoryItem | undefined> => {
+    return inventoryRepo.getCentralWarehouseStock(sku);
+  }, []);
+
+  return {
+    inventory: scopedInventory,
+    rawInventory,
+    isLoading: isLoading || isSyncing,
+    refetch: fetchInventory,
+    checkWarehouseBackup
+  };
+};

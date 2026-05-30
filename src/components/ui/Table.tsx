@@ -5,7 +5,7 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {}
 
 export const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto custom-scrollbar rounded-lg border border-border/40 bg-slate-950/20">
+    <div className="relative w-full overflow-auto custom-scrollbar rounded-lg border border-border/40 bg-card">
       <table ref={ref} className={cn("w-full caption-bottom text-sm border-collapse", className)} {...props} />
     </div>
   )
@@ -14,7 +14,7 @@ Table.displayName = "Table";
 
 export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <thead ref={ref} className={cn("[&_tr]:border-b border-border/50 bg-slate-900/30", className)} {...props} />
+    <thead ref={ref} className={cn("[&_tr]:border-b border-border/50 bg-muted/40", className)} {...props} />
   )
 );
 TableHeader.displayName = "TableHeader";
@@ -80,7 +80,7 @@ export const TableLoader: React.FC<TableLoaderProps> = ({ columnsCount, rowsCoun
         <TableRow key={`row-load-${rIdx}`} className="animate-pulse">
           {Array.from({ length: columnsCount }).map((_, cIdx) => (
             <TableCell key={`cell-load-${cIdx}`}>
-              <div className="h-4 bg-slate-800 rounded-md w-3/4" />
+              <div className="h-4 bg-slate-200 rounded-md w-3/4" />
             </TableCell>
           ))}
         </TableRow>

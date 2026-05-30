@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useMultiOutlet } from '../../contexts/MultiOutletContext';
+import { useSession } from '../../application/context/SessionContext';
+import { useInventoryUseCase } from '../../application/use-cases/useInventoryUseCase';
+import { useTransferUseCase } from '../../application/use-cases/useTransferUseCase';
+import { MOCK_BRANCHES } from '../../data/mock/mockData';
 import { Button } from '../ui/Button';
 
 import { Select, SelectOption } from '../ui/Select';
@@ -11,12 +14,10 @@ interface StockTransferModalProps {
 }
 
 export const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose }) => {
-  const { 
-    branches, 
-    inventory, 
-    requestStockTransfer, 
-    currentUser 
-  } = useMultiOutlet();
+  const { currentUser } = useSession();
+  const { rawInventory: inventory } = useInventoryUseCase();
+  const { requestTransfer: requestStockTransfer } = useTransferUseCase();
+  const branches = MOCK_BRANCHES;
 
   const [sourceBranchId, setSourceBranchId] = useState('br-warehouse'); // Default to central warehouse
   const [destBranchId, setDestBranchId] = useState(currentUser.branchId || 'br-ikeja');
@@ -99,15 +100,15 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
       <div 
-        className="w-full max-w-lg rounded-xl border border-border bg-slate-900 shadow-2xl overflow-hidden glass-card"
+        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-slate-950/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-muted/40">
           <h2 id="modal-title" className="text-base font-bold uppercase tracking-wider text-foreground">
             Request Inventory Stock Transfer
           </h2>
@@ -124,7 +125,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
           {/* Transfer Route Visualizer */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/50 border border-border/30">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30">
             <div className="text-center flex-1 min-w-0">
               <span className="block text-xxs font-bold uppercase tracking-wider text-primary/80 mb-0.5">Source Outlet</span>
               <span className="block text-xs font-semibold text-foreground truncate">
@@ -183,11 +184,11 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, 
                 max={selectedItem ? selectedItem.quantity : undefined}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="flex h-10 w-full rounded-lg border border-border bg-slate-900/60 px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-900"
+                className="flex h-10 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-900"
               />
             </div>
             {selectedItem && (
-              <div className="flex flex-col justify-end p-2.5 rounded-lg border border-border/30 bg-slate-950/20">
+              <div className="flex flex-col justify-end p-2.5 rounded-lg border border-border/30 bg-muted/30">
                 <span className="text-xxs text-muted-foreground font-medium uppercase">Batch Info</span>
                 <span className="text-xs font-mono text-foreground font-semibold truncate mt-0.5">{selectedItem.batchNumber || 'N/A'}</span>
               </div>

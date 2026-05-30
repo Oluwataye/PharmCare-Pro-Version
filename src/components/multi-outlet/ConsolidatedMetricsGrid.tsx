@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
-import { useMultiOutlet } from '../../contexts/MultiOutletContext';
+import { useSession } from '../../application/context/SessionContext';
+import { useInventoryUseCase } from '../../application/use-cases/useInventoryUseCase';
+import { useStaffUseCase } from '../../application/use-cases/useStaffUseCase';
+import { MOCK_BRANCHES, generateMockSalesReports } from '../../data/mock/mockData';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { formatNaira } from '../../lib/utils';
@@ -8,26 +11,22 @@ import {
   Warehouse, ArrowRightLeft, DatabaseZap 
 } from 'lucide-react';
 
+const MOCK_SALES_REPORTS = generateMockSalesReports();
+
 export const ConsolidatedMetricsGrid: React.FC = () => {
-  const { 
-    selectedRegionId, 
-    selectedOutletId, 
-    salesReports, 
-    inventory, 
-    staff,
-    queryCentralWarehouseStock,
-    branches
-  } = useMultiOutlet();
+  const { selectedRegionId, selectedOutletId } = useSession();
+  const { inventory, rawInventory } = useInventoryUseCase();
+  const { activeStaffInScope } = useStaffUseCase();
 
   // 1. Calculate scoped metrics
   const stats = useMemo(() => {
     // Filter sales logs
-    let filteredReports = salesReports;
+    let filteredReports = MOCK_SALES_REPORTS;
     if (selectedOutletId !== 'all') {
-      filteredReports = salesReports.filter(r => r.branchId === selectedOutletId);
+      filteredReports = MOCK_SALES_REPORTS.filter(r => r.branchId === selectedOutletId);
     } else if (selectedRegionId !== 'all') {
-      const regionBranchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
-      filteredReports = salesReports.filter(r => regionBranchIds.includes(r.branchId));
+      const regionBranchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      filteredReports = MOCK_SALES_REPORTS.filter(r => regionBranchIds.includes(r.branchId));
     }
 
     // Sum revenue and transactions
@@ -35,30 +34,13 @@ export const ConsolidatedMetricsGrid: React.FC = () => {
     const totalTx = filteredReports.reduce((sum, r) => sum + r.transactionCount, 0);
     const avgOrderValue = totalTx > 0 ? Math.round(totalSales / totalTx) : 0;
 
-    // Filter active staff count
-    let filteredStaff = staff;
-    if (selectedOutletId !== 'all') {
-      filteredStaff = staff.filter(s => s.branchId === selectedOutletId);
-    } else if (selectedRegionId !== 'all') {
-      filteredStaff = staff.filter(s => s.regionId === selectedRegionId);
-    }
-    const onlineStaff = filteredStaff.filter(s => s.status === 'online' || s.status === 'on_break').length;
-
     // Filter local inventory low stock count
-    let localInventory = inventory;
-    if (selectedOutletId !== 'all') {
-      localInventory = inventory.filter(i => i.branchId === selectedOutletId);
-    } else if (selectedRegionId !== 'all') {
-      const regionBranchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
-      localInventory = inventory.filter(i => regionBranchIds.includes(i.branchId));
-    }
+    const lowStockItems = inventory.filter(item => item.quantity <= item.reorderLevel);
 
-    const lowStockItems = localInventory.filter(item => item.quantity <= item.reorderLevel);
-
-    // Identify depleted items (Quantity = 0) and trigger automatic warehouse stock query (user request)
-    const outOfStockItems = localInventory.filter(item => item.quantity === 0);
+    // Identify depleted items (Quantity = 0) and check warehouse levels (synchronously using rawInventory)
+    const outOfStockItems = inventory.filter(item => item.quantity === 0);
     const warehouseQueries = outOfStockItems.map(item => {
-      const warehouseStock = queryCentralWarehouseStock(item.sku);
+      const warehouseStock = rawInventory.find(i => i.sku === item.sku && i.branchId === 'br-warehouse');
       return {
         productName: item.name,
         sku: item.sku,
@@ -72,11 +54,11 @@ export const ConsolidatedMetricsGrid: React.FC = () => {
       totalSales,
       totalTx,
       avgOrderValue,
-      onlineStaff,
+      onlineStaff: activeStaffInScope,
       lowStockCount: lowStockItems.length,
       warehouseQueries
     };
-  }, [selectedRegionId, selectedOutletId, salesReports, inventory, staff, branches, queryCentralWarehouseStock]);
+  }, [selectedRegionId, selectedOutletId, inventory, rawInventory, activeStaffInScope]);
 
   const cardsData = [
     {
@@ -143,7 +125,7 @@ export const ConsolidatedMetricsGrid: React.FC = () => {
 
       {/* Requirement: Automatically query stock from the central warehouse */}
       {selectedOutletId !== 'br-warehouse' && stats.warehouseQueries.length > 0 && (
-        <Card className="border border-warning/30 bg-warning/5 overflow-hidden backdrop-blur-md">
+        <Card className="border border-warning/30 bg-amber-50/40 overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 bg-warning/10 border-b border-warning/20">
             <Warehouse className="h-4.5 w-4.5 text-warning" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-warning flex-1">
@@ -162,7 +144,7 @@ export const ConsolidatedMetricsGrid: React.FC = () => {
               {stats.warehouseQueries.map((q) => (
                 <div 
                   key={q.sku}
-                  className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-border/30"
+                  className="flex items-center justify-between p-2.5 rounded-lg bg-card border border-border"
                 >
                   <div className="min-w-0 pr-2">
                     <p className="text-xs font-medium text-foreground truncate">{q.productName}</p>

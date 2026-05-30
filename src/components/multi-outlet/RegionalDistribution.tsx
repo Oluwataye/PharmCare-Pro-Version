@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { useMultiOutlet } from '../../contexts/MultiOutletContext';
+import { MOCK_REGIONS, MOCK_BRANCHES, generateMockSalesReports } from '../../data/mock/mockData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { formatNaira } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
 import { Globe, MapPin, Milestone } from 'lucide-react';
 
 export const RegionalDistribution: React.FC = () => {
-  const { salesReports, branches, regions } = useMultiOutlet();
+  const regions = MOCK_REGIONS;
+  const branches = MOCK_BRANCHES;
+  const salesReports = useMemo(() => generateMockSalesReports(), []);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
   // Compute aggregated stats for each region
@@ -44,7 +46,7 @@ export const RegionalDistribution: React.FC = () => {
   ];
 
   return (
-    <Card className="border border-border/30 bg-slate-900/40 backdrop-blur-md">
+    <Card className="border border-border bg-card shadow-sm">
       <CardHeader className="pb-3 border-b border-border/20">
         <div className="flex items-center gap-2">
           <Globe className="h-5 w-5 text-primary" />
@@ -60,7 +62,7 @@ export const RegionalDistribution: React.FC = () => {
       <CardContent className="p-6 grid gap-6 md:grid-cols-2 items-center">
         
         {/* Interactive SVG Visual Map */}
-        <div className="relative flex justify-center bg-slate-950/40 border border-border/20 rounded-xl p-4 overflow-hidden">
+        <div className="relative flex justify-center bg-slate-50 border border-border rounded-xl p-4 overflow-hidden">
           <div className="absolute top-3 left-3 flex items-center gap-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
             <Milestone className="h-3.5 w-3.5 text-primary" />
             <span>Interactive Node Matrix</span>
@@ -68,17 +70,17 @@ export const RegionalDistribution: React.FC = () => {
           
           <svg viewBox="0 0 320 240" className="w-full max-w-[280px] h-auto">
             {/* Grid background lines */}
-            <line x1="0" y1="60" x2="320" y2="60" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            <line x1="0" y1="120" x2="320" y2="120" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            <line x1="0" y1="180" x2="320" y2="180" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            <line x1="80" y1="0" x2="80" y2="240" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            <line x1="160" y1="0" x2="160" y2="240" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            <line x1="240" y1="0" x2="240" y2="240" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+            <line x1="0" y1="60" x2="320" y2="60" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
+            <line x1="0" y1="120" x2="320" y2="120" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
+            <line x1="0" y1="180" x2="320" y2="180" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
+            <line x1="80" y1="0" x2="80" y2="240" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
+            <line x1="160" y1="0" x2="160" y2="240" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
+            <line x1="240" y1="0" x2="240" y2="240" stroke="rgba(0,0,0,0.03)" strokeWidth="1" />
 
             {/* Connection mesh lines */}
             <path 
               d="M 80 190 L 100 110 M 100 110 L 220 90 M 220 90 L 200 180 M 200 180 L 80 190" 
-              stroke="rgba(255,255,255,0.1)" 
+              stroke="rgba(0,0,0,0.08)" 
               strokeWidth="2" 
               strokeDasharray="4 4"
             />
@@ -145,8 +147,8 @@ export const RegionalDistribution: React.FC = () => {
                 onMouseLeave={() => setHoveredRegionId(null)}
                 className={`p-3 rounded-lg border transition-all duration-200 flex items-center justify-between ${
                   isHighlighted 
-                    ? 'bg-slate-950 border-primary shadow-md translate-x-1' 
-                    : 'bg-slate-950/40 border-border/30 hover:border-border'
+                    ? 'bg-primary/5 border-primary shadow-sm translate-x-1' 
+                    : 'bg-card border-border hover:border-primary/20'
                 }`}
               >
                 <div className="min-w-0 pr-2">

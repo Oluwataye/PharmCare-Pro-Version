@@ -130,7 +130,7 @@ export const Select: React.FC<SelectProps> = ({
         disabled={disabled}
         onClick={handleToggle}
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-lg border border-border bg-slate-900/60 px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all",
+          "flex h-10 w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all",
           isOpen && "ring-2 ring-primary ring-offset-2 border-primary/50"
         )}
       >
@@ -145,7 +145,7 @@ export const Select: React.FC<SelectProps> = ({
         <div 
           role="listbox"
           tabIndex={-1}
-          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-slate-950 p-1 shadow-lg shadow-black/80 ring-1 ring-black ring-opacity-5 focus:outline-none custom-scrollbar animate-fade-in"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none custom-scrollbar animate-fade-in"
         >
           {/* Ungrouped Options */}
           {groupedOptions.ungrouped.map((opt) => {
