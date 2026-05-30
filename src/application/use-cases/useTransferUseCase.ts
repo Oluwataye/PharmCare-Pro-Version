@@ -30,8 +30,8 @@ export const useTransferUseCase = (onInventoryMutated?: () => void) => {
     fetchTransfers();
   }, [fetchTransfers]);
 
-  // Scoped transfers list depending on current region or outlet scope and role
   const scopedTransfers = useMemo(() => {
+    if (!currentUser) return [];
     let list = transfers;
     
     // Narrow down based on selected scoping filters
