@@ -5,11 +5,10 @@ import { MockInventoryRepository } from '../../data/mock/inventoryRepo';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Select } from '../ui/Select';
 import { formatNaira } from '../../lib/utils';
 import { Discount } from '../../domain/entities/models';
 import { 
-  ShoppingBag, CheckCircle2, AlertCircle, 
+  ShoppingBag, CheckCircle2, AlertCircle, Search, X,
   Receipt, Calculator, Scale,
   ArrowLeft, TrendingUp, CreditCard, Coins,
   ArrowRight, AlertTriangle, ShieldCheck
@@ -86,6 +85,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
   // Form states - Register Sale
   const [selectedSku, setSelectedSku] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [saleQty, setSaleQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'POS' | 'TRANSFER'>('CASH');
   const [saleError, setSaleError] = useState('');
@@ -292,6 +293,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       
       // Reset form
       setSelectedSku('');
+      setProductSearch('');
+      setShowSuggestions(false);
       setSaleQty(1);
       setDiscountCode('');
       setAppliedDiscount(null);
@@ -342,6 +345,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   const handleStartSimulation = (branchId: string) => {
     setSimulatedBranchId(branchId);
     setSelectedSku('');
+    setProductSearch('');
+    setShowSuggestions(false);
     setSaleQty(1);
     setSaleError('');
     setSaleSuccess('');
@@ -411,23 +416,113 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
               <CardContent className="p-5">
                 <form onSubmit={handleRegisterSale} className="space-y-4">
                   
-                  {/* Select Product */}
-                  <div>
+                  {/* Search Medicine */}
+                  <div className="relative">
                     <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                      Select Medicine
+                      Search Medicine / Product
                     </label>
-                    <Select
-                      value={selectedSku}
-                      onChange={setSelectedSku}
-                      options={[
-                        { value: '', label: '-- Choose Product --' },
-                        ...branchProducts.map(p => ({
-                          value: p.sku,
-                          label: `${p.name} (${p.quantity} units left) - ${formatNaira(p.price)}`
-                        }))
-                      ]}
-                      ariaLabel="Select medicine to sell"
-                    />
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        value={productSearch}
+                        onChange={(e) => {
+                          const q = e.target.value;
+                          setProductSearch(q);
+                          setShowSuggestions(true);
+                          // If cleared, also deselect product
+                          if (!q) {
+                            setSelectedSku('');
+                            setAppliedDiscount(null);
+                            setDiscountSuccess('');
+                          }
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                        placeholder="Type product name or SKU…"
+                        className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-8 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        autoComplete="off"
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductSearch('');
+                            setSelectedSku('');
+                            setShowSuggestions(false);
+                            setAppliedDiscount(null);
+                            setDiscountSuccess('');
+                          }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Suggestions Dropdown */}
+                    {showSuggestions && (
+                      <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-white shadow-xl overflow-hidden max-h-56 overflow-y-auto">
+                        {branchProducts
+                          .filter(p =>
+                            !productSearch ||
+                            p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                            p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
+                            (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
+                          )
+                          .slice(0, 12)
+                          .map(p => (
+                            <button
+                              key={p.sku}
+                              type="button"
+                              onMouseDown={() => {
+                                setSelectedSku(p.sku);
+                                setProductSearch(p.name);
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 hover:bg-primary/5 border-b border-border/40 last:border-0 flex items-center justify-between gap-2 group"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-800 group-hover:text-primary truncate">{p.name}</p>
+                                <p className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                                  {p.sku} · {p.category}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-xs font-black text-primary font-mono">{formatNaira(p.price)}</p>
+                                <p className={`text-[9px] font-mono font-semibold ${
+                                  p.quantity <= (p.reorderLevel ?? 0) ? 'text-amber-500' : 'text-success'
+                                }`}>
+                                  {p.quantity} left
+                                </p>
+                              </div>
+                            </button>
+                          ))
+                        }
+                        {branchProducts.filter(p =>
+                          !productSearch ||
+                          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                          p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
+                          (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
+                        ).length === 0 && (
+                          <div className="px-4 py-6 text-center">
+                            <Search className="h-5 w-5 text-muted-foreground/30 mx-auto mb-2" />
+                            <p className="text-xxs text-muted-foreground font-medium">No products match <strong>{productSearch}</strong></p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Selected product chip */}
+                    {selectedSku && activeProduct && (
+                      <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-primary truncate">{activeProduct.name}</p>
+                          <p className="text-[9px] font-mono text-muted-foreground">{activeProduct.sku} · {activeProduct.quantity} in stock</p>
+                        </div>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Quantity and Price Preview */}
