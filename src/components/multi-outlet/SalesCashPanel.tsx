@@ -15,6 +15,7 @@ import {
   Plus, Minus, Trash2
 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
+import { getCartSession, setCartSession, clearCartSession } from '../../lib/indexedDb';
 
 interface SalesCashPanelProps {
   onInventoryMutated?: () => void;
@@ -157,43 +158,60 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   // Load saved cart when operator or active branch changes
   React.useEffect(() => {
     let timer: any = null;
+    let isMounted = true;
+
     if (!storageKey) {
       setCartItems([]);
       lastLoadedKeyRef.current = '';
       return;
     }
 
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setCartItems(parsed);
-        if (parsed.length > 0) {
+    const loadCart = async () => {
+      try {
+        const saved = await getCartSession<CartItem[]>(storageKey);
+        if (!isMounted) return;
+
+        if (saved && saved.length > 0) {
+          setCartItems(saved);
           setRestoredBanner('Active cart session recovered.');
-          timer = setTimeout(() => setRestoredBanner(''), 4000);
+          timer = setTimeout(() => {
+            if (isMounted) setRestoredBanner('');
+          }, 4000);
+        } else {
+          setCartItems([]);
         }
-      } else {
-        setCartItems([]);
+        lastLoadedKeyRef.current = storageKey;
+      } catch (e) {
+        console.error('Failed to load cart from IndexedDB:', e);
+        if (isMounted) setCartItems([]);
       }
-    } catch (e) {
-      console.error('Failed to load cart from localStorage:', e);
-      setCartItems([]);
-    }
-    lastLoadedKeyRef.current = storageKey;
+    };
+
+    loadCart();
 
     return () => {
+      isMounted = false;
       if (timer) clearTimeout(timer);
     };
   }, [storageKey]);
 
-  // Save cart changes to localStorage
+  // Save cart changes to IndexedDB
   React.useEffect(() => {
     if (!storageKey || storageKey !== lastLoadedKeyRef.current) return;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(cartItems));
-    } catch (e) {
-      console.error('Failed to save cart to localStorage:', e);
-    }
+
+    const saveCart = async () => {
+      try {
+        if (cartItems.length > 0) {
+          await setCartSession(storageKey, cartItems);
+        } else {
+          await clearCartSession(storageKey);
+        }
+      } catch (e) {
+        console.error('Failed to save cart to IndexedDB:', e);
+      }
+    };
+
+    saveCart();
   }, [cartItems, storageKey]);
 
   // Scoped list of branches governed by logged-in role
