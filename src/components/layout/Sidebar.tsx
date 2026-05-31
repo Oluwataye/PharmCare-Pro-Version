@@ -2,10 +2,11 @@ import React from 'react';
 import { useSession } from '../../application/context/SessionContext';
 import { 
   LayoutDashboard, Database, ArrowRightLeft, 
-  DollarSign, UserCog, X, ChevronLeft, ChevronRight 
+  DollarSign, UserCog, X, ChevronLeft, ChevronRight,
+  BarChart2, ShoppingCart
 } from 'lucide-react';
 
-export type ActivePanel = 'overview' | 'inventory' | 'transfers' | 'sales' | 'governance';
+export type ActivePanel = 'overview' | 'inventory' | 'transfers' | 'sales' | 'governance' | 'reports' | 'purchase-orders';
 
 interface SidebarProps {
   activePanel: ActivePanel;
@@ -24,13 +25,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   setIsMobileOpen
 }) => {
-  const { canManageUsers } = useSession();
+  const { canManageUsers, currentUser } = useSession();
 
   const navigationItems = [
     { id: 'overview' as ActivePanel, label: 'Overview', icon: LayoutDashboard },
     { id: 'inventory' as ActivePanel, label: 'Inventory Catalog', icon: Database },
     { id: 'transfers' as ActivePanel, label: 'Logistics Transfers', icon: ArrowRightLeft },
     { id: 'sales' as ActivePanel, label: 'Sales & Ops', icon: DollarSign },
+    { id: 'reports' as ActivePanel, label: 'Reports', icon: BarChart2 },
+    ...(['SUPER_ADMIN','REGIONAL_MANAGER','ADMIN','PHARMACIST'].includes(currentUser?.role || '') ? [{ id: 'purchase-orders' as ActivePanel, label: 'Purchase Orders', icon: ShoppingCart }] : []),
     ...(canManageUsers ? [{ id: 'governance' as ActivePanel, label: 'Governance', icon: UserCog }] : [])
   ];
 

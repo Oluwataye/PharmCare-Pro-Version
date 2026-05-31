@@ -114,3 +114,46 @@ export interface Supplier {
   isActive: boolean;
 }
 
+export interface PurchaseOrderItem {
+  sku: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  branchId: string;
+}
+
+export type POStatus = 'draft' | 'submitted' | 'approved' | 'received' | 'cancelled';
+
+export interface PurchaseOrder {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  items: PurchaseOrderItem[];
+  status: POStatus;
+  expectedDeliveryDate: string;
+  createdBy: string;
+  createdByName: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  receivedAt?: string;
+  createdAt: string;
+  notes?: string;
+  totalValue: number;
+}
+
+export type NotificationType = 'low_stock' | 'expiry' | 'pending_transfer' | 'reconciliation_mismatch' | 'new_staff' | 'po_received';
+export type NotificationSeverity = 'info' | 'warning' | 'critical';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  severity: NotificationSeverity;
+  title: string;
+  message: string;
+  panelTarget?: 'overview' | 'inventory' | 'transfers' | 'sales' | 'governance' | 'reports' | 'purchase-orders';
+  isRead: boolean;
+  createdAt: string;
+  branchId?: string;
+  branchName?: string;
+}
+
