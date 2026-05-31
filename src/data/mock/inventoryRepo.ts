@@ -50,4 +50,29 @@ export class MockInventoryRepository implements IInventoryRepository {
     // Queries Central Warehouse ('br-warehouse')
     return _inventoryDb.find(item => item.sku === sku && item.branchId === 'br-warehouse');
   }
+
+  async createItem(itemData: Omit<InventoryItem, 'id'>): Promise<InventoryItem> {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const newItem: InventoryItem = {
+      ...itemData,
+      id: `inv-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+    };
+    _inventoryDb.push(newItem);
+    return newItem;
+  }
+
+  async updateItem(updatedItem: InventoryItem): Promise<InventoryItem> {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const index = _inventoryDb.findIndex(item => item.id === updatedItem.id);
+    if (index >= 0) {
+      _inventoryDb[index] = updatedItem;
+      return updatedItem;
+    }
+    throw new Error(`Inventory item with ID ${updatedItem.id} not found.`);
+  }
+
+  async deleteItem(id: string): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    _inventoryDb = _inventoryDb.filter(item => item.id !== id);
+  }
 }

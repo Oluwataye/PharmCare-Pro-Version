@@ -4,6 +4,9 @@ export interface IInventoryRepository {
   getInventory(branchId?: string): Promise<InventoryItem[]>;
   updateStock(branchId: string, sku: string, deltaQty: number): Promise<void>;
   getCentralWarehouseStock(sku: string): Promise<InventoryItem | undefined>;
+  createItem(item: Omit<InventoryItem, 'id'>): Promise<InventoryItem>;
+  updateItem(item: InventoryItem): Promise<InventoryItem>;
+  deleteItem(id: string): Promise<void>;
 }
 
 export interface ITransferRepository {

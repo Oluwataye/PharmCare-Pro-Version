@@ -47,11 +47,53 @@ export const useInventoryUseCase = () => {
     return inventoryRepo.getCentralWarehouseStock(sku);
   }, []);
 
+  const addProduct = useCallback(async (itemData: Omit<InventoryItem, 'id'>) => {
+    setIsLoading(true);
+    try {
+      await inventoryRepo.createItem(itemData);
+      await fetchInventory();
+    } catch (err) {
+      console.error("Failed to add product:", err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchInventory]);
+
+  const updateProduct = useCallback(async (updatedItem: InventoryItem) => {
+    setIsLoading(true);
+    try {
+      await inventoryRepo.updateItem(updatedItem);
+      await fetchInventory();
+    } catch (err) {
+      console.error("Failed to update product:", err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchInventory]);
+
+  const deleteProduct = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      await inventoryRepo.deleteItem(id);
+      await fetchInventory();
+    } catch (err) {
+      console.error("Failed to delete product:", err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchInventory]);
+
   return {
     inventory: scopedInventory,
     rawInventory,
     isLoading: isLoading || isSyncing,
     refetch: fetchInventory,
-    checkWarehouseBackup
+    checkWarehouseBackup,
+    addProduct,
+    updateProduct,
+    deleteProduct
   };
 };
