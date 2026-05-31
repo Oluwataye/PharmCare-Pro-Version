@@ -11,18 +11,25 @@ import {
   ShoppingBag, CheckCircle2, AlertCircle, Search, X,
   Receipt, Calculator, Scale,
   ArrowLeft, TrendingUp, CreditCard, Coins,
-  ArrowRight, AlertTriangle, ShieldCheck
+  ArrowRight, AlertTriangle, ShieldCheck,
+  Plus, Minus, Trash2
 } from 'lucide-react';
+import { ReceiptModal } from './ReceiptModal';
 
 interface SalesCashPanelProps {
   onInventoryMutated?: () => void;
 }
 
-interface SimulatedReceipt {
-  id: string;
+interface ReceiptItem {
   productName: string;
   sku: string;
   quantity: number;
+  unitPrice: number;
+}
+
+interface SimulatedReceipt {
+  id: string;
+  items: ReceiptItem[];
   totalAmount: number;
   paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
   timestamp: string;
@@ -34,6 +41,7 @@ interface SimulatedReceipt {
     value: number;
     discountAmount: number;
   };
+  originalAmount?: number;
 }
 
 interface ReconciliationLog {
@@ -52,16 +60,16 @@ const inventoryRepo = new MockInventoryRepository();
 
 // Pre-populated transactions representing business activity across the branches
 const INITIAL_RECEIPTS: SimulatedReceipt[] = [
-  { id: 'rec-1', productName: 'Ciprofloxacin 500mg', sku: 'MED-CIP-500', quantity: 2, totalAmount: 8400, paymentMethod: 'POS', timestamp: '10:15 AM', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
-  { id: 'rec-2', productName: 'Paracetamol 500mg', sku: 'MED-PCM-500', quantity: 5, totalAmount: 2500, paymentMethod: 'CASH', timestamp: '09:30 AM', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
-  { id: 'rec-3', productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 3, totalAmount: 10500, paymentMethod: 'TRANSFER', timestamp: '10:45 AM', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
-  { id: 'rec-4', productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 1, totalAmount: 6500, paymentMethod: 'POS', timestamp: '08:15 AM', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
-  { id: 'rec-5', productName: 'Artemether-Lumefantrine (Coartem)', sku: 'MED-COA-024', quantity: 4, totalAmount: 11200, paymentMethod: 'CASH', timestamp: '11:00 AM', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
-  { id: 'rec-6', productName: 'Metformin 500mg', sku: 'MED-MET-500', quantity: 10, totalAmount: 18000, paymentMethod: 'POS', timestamp: '07:50 AM', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
-  { id: 'rec-7', productName: 'Omeprazole 20mg', sku: 'MED-OME-020', quantity: 2, totalAmount: 2400, paymentMethod: 'TRANSFER', timestamp: '11:15 AM', branchId: 'br-abuja-wuse', branchName: 'Wuse II Premium Outlet' },
-  { id: 'rec-8', productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 2, totalAmount: 13000, paymentMethod: 'POS', timestamp: '09:20 AM', branchId: 'br-kano', branchName: 'Kano Commercial Outlet' },
-  { id: 'rec-9', productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 5, totalAmount: 17500, paymentMethod: 'CASH', timestamp: '10:05 AM', branchId: 'br-enugu', branchName: 'Enugu Urban Outlet' },
-  { id: 'rec-10', productName: 'Ibuprofen 400mg', sku: 'MED-IBU-400', quantity: 8, totalAmount: 6400, paymentMethod: 'POS', timestamp: '08:40 AM', branchId: 'br-port-harcourt', branchName: 'PH GRA Outlet' }
+  { id: 'rec-1', items: [{ productName: 'Ciprofloxacin 500mg', sku: 'MED-CIP-500', quantity: 2, unitPrice: 4200 }], totalAmount: 8400, paymentMethod: 'POS', timestamp: '2026-05-31T10:15:00.000Z', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
+  { id: 'rec-2', items: [{ productName: 'Paracetamol 500mg', sku: 'MED-PCM-500', quantity: 5, unitPrice: 500 }], totalAmount: 2500, paymentMethod: 'CASH', timestamp: '2026-05-31T09:30:00.000Z', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
+  { id: 'rec-3', items: [{ productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 3, unitPrice: 3500 }], totalAmount: 10500, paymentMethod: 'TRANSFER', timestamp: '2026-05-31T10:45:00.000Z', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
+  { id: 'rec-4', items: [{ productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 1, unitPrice: 6500 }], totalAmount: 6500, paymentMethod: 'POS', timestamp: '2026-05-31T08:15:00.000Z', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
+  { id: 'rec-5', items: [{ productName: 'Artemether-Lumefantrine (Coartem)', sku: 'MED-COA-024', quantity: 4, unitPrice: 2800 }], totalAmount: 11200, paymentMethod: 'CASH', timestamp: '2026-05-31T11:00:00.000Z', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
+  { id: 'rec-6', items: [{ productName: 'Metformin 500mg', sku: 'MED-MET-500', quantity: 10, unitPrice: 1800 }], totalAmount: 18000, paymentMethod: 'POS', timestamp: '2026-05-31T07:50:00.000Z', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
+  { id: 'rec-7', items: [{ productName: 'Omeprazole 20mg', sku: 'MED-OME-020', quantity: 2, unitPrice: 1200 }], totalAmount: 2400, paymentMethod: 'TRANSFER', timestamp: '2026-05-31T11:15:00.000Z', branchId: 'br-abuja-wuse', branchName: 'Wuse II Premium Outlet' },
+  { id: 'rec-8', items: [{ productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 2, unitPrice: 6500 }], totalAmount: 13000, paymentMethod: 'POS', timestamp: '2026-05-31T09:20:00.000Z', branchId: 'br-kano', branchName: 'Kano Commercial Outlet' },
+  { id: 'rec-9', items: [{ productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 5, unitPrice: 3500 }], totalAmount: 17500, paymentMethod: 'CASH', timestamp: '2026-05-31T10:05:00.000Z', branchId: 'br-enugu', branchName: 'Enugu Urban Outlet' },
+  { id: 'rec-10', items: [{ productName: 'Ibuprofen 400mg', sku: 'MED-IBU-400', quantity: 8, unitPrice: 800 }], totalAmount: 6400, paymentMethod: 'POS', timestamp: '2026-05-31T08:40:00.000Z', branchId: 'br-port-harcourt', branchName: 'PH GRA Outlet' }
 ];
 
 // Pre-populated reconciliations logged on previous business days
@@ -71,6 +79,15 @@ const INITIAL_RECONCILIATIONS: ReconciliationLog[] = [
   { id: 'recon-3', date: new Date(Date.now() - 86400000).toLocaleDateString(), branchName: 'Ibadan Main Outlet', branchId: 'br-ibadan', expectedCash: 15400, actualCash: 15500, discrepancy: 100, status: 'overage', reconciledBy: 'Ngozi Okoro' },
   { id: 'recon-4', date: new Date(Date.now() - 172800000).toLocaleDateString(), branchName: 'Wuse II Premium Outlet', branchId: 'br-abuja-wuse', expectedCash: 21000, actualCash: 21000, discrepancy: 0, status: 'balanced', reconciledBy: 'Fatima Ibrahim' }
 ];
+
+export interface CartItem {
+  sku: string;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+  stock: number;
+}
 
 export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutated }) => {
   const { selectedRegionId, selectedOutletId, currentUser, branches, discounts } = useSession();
@@ -83,11 +100,16 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   // Simulation scope override (allows manager to operate any branch register)
   const [simulatedBranchId, setSimulatedBranchId] = useState<string | null>(null);
 
+  // Shopping cart items state
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+
+  // Selected receipt for showing in ReceiptModal
+  const [selectedReceiptForModal, setSelectedReceiptForModal] = useState<SimulatedReceipt | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+
   // Form states - Register Sale
-  const [selectedSku, setSelectedSku] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [saleQty, setSaleQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'POS' | 'TRANSFER'>('CASH');
   const [saleError, setSaleError] = useState('');
   const [saleSuccess, setSaleSuccess] = useState('');
@@ -140,15 +162,75 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     return rawInventory.filter(item => item.branchId === activeBranchId && item.quantity > 0);
   }, [rawInventory, activeBranchId]);
 
-  const activeProduct = useMemo(() => {
-    return branchProducts.find(p => p.sku === selectedSku);
-  }, [branchProducts, selectedSku]);
+  // Cart operations helper functions
+  const addToCart = (product: typeof branchProducts[0]) => {
+    // Limit to 15 unique items
+    if (cartItems.length >= 15 && !cartItems.some(i => i.sku === product.sku)) {
+      setSaleError('Cart limit reached (max 15 unique items).');
+      return;
+    }
 
-  // Calculate receipt totals
+    const existing = cartItems.find(i => i.sku === product.sku);
+    const newQty = existing ? existing.quantity + 1 : 1;
+
+    if (newQty > product.quantity) {
+      setSaleError(`Insufficient stock for ${product.name}. Max available is ${product.quantity}.`);
+      return;
+    }
+
+    if (existing) {
+      setCartItems(prev => prev.map(item => 
+        item.sku === product.sku 
+          ? { ...item, quantity: newQty, total: newQty * item.price } 
+          : item
+      ));
+    } else {
+      const newItem: CartItem = {
+        sku: product.sku,
+        name: product.name,
+        quantity: 1,
+        price: product.price,
+        total: product.price,
+        stock: product.quantity
+      };
+      setCartItems(prev => [...prev, newItem]);
+    }
+    setSaleError('');
+    setProductSearch('');
+    setShowSuggestions(false);
+  };
+
+  const updateCartQty = (sku: string, qty: number) => {
+    const item = cartItems.find(i => i.sku === sku);
+    if (!item) return;
+
+    if (qty > item.stock) {
+      setSaleError(`Cannot exceed available stock (${item.stock} units) for ${item.name}.`);
+      return;
+    }
+
+    if (qty < 1) {
+      removeFromCart(sku);
+      return;
+    }
+
+    setCartItems(prev => prev.map(i => 
+      i.sku === sku 
+        ? { ...i, quantity: qty, total: qty * i.price } 
+        : i
+    ));
+    setSaleError('');
+  };
+
+  const removeFromCart = (sku: string) => {
+    setCartItems(prev => prev.filter(i => i.sku !== sku));
+    setSaleError('');
+  };
+
+  // Calculate receipt totals based on cart
   const subtotal = useMemo(() => {
-    if (!activeProduct) return 0;
-    return activeProduct.price * saleQty;
-  }, [activeProduct, saleQty]);
+    return cartItems.reduce((sum, item) => sum + item.total, 0);
+  }, [cartItems]);
 
   const discountedSaleAmount = useMemo(() => {
     if (!appliedDiscount) return subtotal;
@@ -254,10 +336,10 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
   const handleRegisterSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProduct || !activeBranchId) return;
+    if (!activeBranchId) return;
 
-    if (saleQty > activeProduct.quantity) {
-      setSaleError(`Insufficient stock. Maximum available is ${activeProduct.quantity} units.`);
+    if (cartItems.length === 0) {
+      setSaleError('Cannot register sale. The cart is empty.');
       return;
     }
 
@@ -266,18 +348,23 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     setSaleSuccess('');
 
     try {
-      // 1. Decrement Stock level in inventory DB (Mock repository updates shared array)
-      await inventoryRepo.updateStock(activeBranchId, activeProduct.sku, -saleQty);
+      // 1. Decrement Stock level in inventory DB for ALL items in the cart
+      for (const item of cartItems) {
+        await inventoryRepo.updateStock(activeBranchId, item.sku, -item.quantity);
+      }
 
       // 2. Add receipt log
       const newReceipt: SimulatedReceipt = {
         id: `rec-new-${Date.now()}`,
-        productName: activeProduct.name,
-        sku: activeProduct.sku,
-        quantity: saleQty,
+        items: cartItems.map(item => ({
+          productName: item.name,
+          sku: item.sku,
+          quantity: item.quantity,
+          unitPrice: item.price
+        })),
         totalAmount: discountedSaleAmount,
         paymentMethod,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toISOString(), // Use full ISO timestamp for ReceiptModal formatting
         branchId: activeBranchId,
         branchName: activeBranchName,
         discountApplied: appliedDiscount ? {
@@ -285,17 +372,21 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           type: appliedDiscount.type,
           value: appliedDiscount.value,
           discountAmount: subtotal - discountedSaleAmount
-        } : undefined
+        } : undefined,
+        originalAmount: subtotal
       };
 
       setReceipts(prev => [newReceipt, ...prev]);
-      setSaleSuccess(`Sold ${saleQty} units of ${activeProduct.name} successfully!`);
+      setSaleSuccess(`Cart checkout of ${cartItems.length} items completed successfully!`);
       
+      // Auto-open print receipt modal
+      setSelectedReceiptForModal(newReceipt);
+      setIsReceiptModalOpen(true);
+
       // Reset form
-      setSelectedSku('');
+      setCartItems([]);
       setProductSearch('');
       setShowSuggestions(false);
-      setSaleQty(1);
       setDiscountCode('');
       setAppliedDiscount(null);
       setDiscountError('');
@@ -344,10 +435,9 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
   const handleStartSimulation = (branchId: string) => {
     setSimulatedBranchId(branchId);
-    setSelectedSku('');
+    setCartItems([]);
     setProductSearch('');
     setShowSuggestions(false);
-    setSaleQty(1);
     setSaleError('');
     setSaleSuccess('');
     setDiscountCode('');
@@ -397,284 +487,329 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        {/* 3-Column POS Cart layout */}
+        <div className="grid gap-6 lg:grid-cols-4">
           
-          {/* Column 1: Register Sale Form */}
-          <div className="lg:col-span-1">
-            <Card className="border border-border bg-card shadow-sm h-full">
-              <CardHeader className="border-b border-border/20 pb-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-4.5 w-4.5 text-primary" />
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
-                    Register Customer Sale
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
-                  Scope: {activeBranchName} Terminal
+          {/* Columns 1 & 2: Search & Shopping Cart */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Search Box */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Search & Add Products
+                </CardTitle>
+                <CardDescription className="text-[10px] text-muted-foreground">
+                  Search by name or SKU. Select to add item directly to checkout.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-5">
-                <form onSubmit={handleRegisterSale} className="space-y-4">
-                  
-                  {/* Search Medicine */}
-                  <div className="relative">
-                    <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                      Search Medicine / Product
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                      <input
-                        type="text"
-                        value={productSearch}
-                        onChange={(e) => {
-                          const q = e.target.value;
-                          setProductSearch(q);
-                          setShowSuggestions(true);
-                          // If cleared, also deselect product
-                          if (!q) {
-                            setSelectedSku('');
-                            setAppliedDiscount(null);
-                            setDiscountSuccess('');
-                          }
-                        }}
-                        onFocus={() => setShowSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                        placeholder="Type product name or SKU…"
-                        className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-8 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        autoComplete="off"
-                      />
-                      {productSearch && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProductSearch('');
-                            setSelectedSku('');
-                            setShowSuggestions(false);
-                            setAppliedDiscount(null);
-                            setDiscountSuccess('');
-                          }}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+              <CardContent className="px-5 pb-5 pt-1 relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    placeholder="Type product name or SKU to add to cart..."
+                    className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-8 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                    autoComplete="off"
+                  />
+                  {productSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProductSearch('');
+                        setShowSuggestions(false);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                    {/* Suggestions Dropdown */}
-                    {showSuggestions && (
-                      <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-white shadow-xl overflow-hidden max-h-56 overflow-y-auto">
-                        {branchProducts
-                          .filter(p =>
-                            !productSearch ||
-                            p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                            p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
-                            (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
-                          )
-                          .slice(0, 12)
-                          .map(p => (
+                {/* Autocomplete Suggestions */}
+                {showSuggestions && (
+                  <div className="absolute left-5 right-5 z-50 mt-1 rounded-xl border border-border bg-white shadow-xl overflow-hidden max-h-56 overflow-y-auto">
+                    {branchProducts
+                      .filter(p =>
+                        !productSearch ||
+                        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                        p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
+                        (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
+                      )
+                      .slice(0, 12)
+                      .map(p => (
+                        <button
+                          key={p.sku}
+                          type="button"
+                          onMouseDown={() => addToCart(p)}
+                          className="w-full text-left px-3 py-2 hover:bg-primary/5 border-b border-border/40 last:border-0 flex items-center justify-between gap-2 group"
+                        >
+                          <div className="min-w-0 py-1">
+                            <p className="text-xs font-semibold text-slate-800 group-hover:text-primary truncate">{p.name}</p>
+                            <p className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                              {p.sku} · {p.category}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs font-black text-primary font-mono">{formatNaira(p.price)}</p>
+                            <p className={`text-[9px] font-mono font-semibold ${
+                              p.quantity <= (p.reorderLevel ?? 0) ? 'text-amber-500' : 'text-success'
+                            }`}>
+                              {p.quantity} left
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    }
+                    {branchProducts.filter(p =>
+                      !productSearch ||
+                      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
+                    ).length === 0 && (
+                      <div className="px-4 py-6 text-center">
+                        <Search className="h-5 w-5 text-muted-foreground/30 mx-auto mb-2" />
+                        <p className="text-xxs text-muted-foreground font-medium">No products match <strong>{productSearch}</strong></p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Shopping Cart Items Table */}
+            <Card className="border border-border bg-card shadow-sm overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/20">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Current Sale Items ({cartItems.length}/15 unique)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto max-h-[350px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-xxs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/75 border-b border-border font-bold text-muted-foreground uppercase tracking-wider">
+                        <th className="p-3 pl-4">Product Name</th>
+                        <th className="p-3 text-right">Price</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Total</th>
+                        <th className="p-3 pr-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cartItems.map((item) => (
+                        <tr key={item.sku} className="border-b border-border/60 hover:bg-slate-50/20 transition duration-150">
+                          <td className="p-3 pl-4 min-w-[160px]">
+                            <p className="font-bold text-slate-800 text-xs">{item.name}</p>
+                            <p className="text-[9px] text-muted-foreground font-mono mt-0.5">{item.sku}</p>
+                          </td>
+                          <td className="p-3 text-right font-mono font-semibold text-slate-700">
+                            {formatNaira(item.price)}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="inline-flex items-center gap-1 bg-slate-50 border border-border rounded-lg p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => updateCartQty(item.sku, item.quantity - 1)}
+                                className="h-6 w-6 flex items-center justify-center rounded hover:bg-white text-muted-foreground hover:text-foreground transition duration-150 border border-transparent hover:border-border"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="w-6 text-center font-bold text-xs font-mono">{item.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateCartQty(item.sku, item.quantity + 1)}
+                                className="h-6 w-6 flex items-center justify-center rounded hover:bg-white text-muted-foreground hover:text-foreground transition duration-150 border border-transparent hover:border-border"
+                                disabled={item.quantity >= item.stock}
+                                title={item.quantity >= item.stock ? "Max stock reached" : "Increase quantity"}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-primary">
+                            {formatNaira(item.total)}
+                          </td>
+                          <td className="p-3 pr-4 text-center">
                             <button
-                              key={p.sku}
                               type="button"
-                              onMouseDown={() => {
-                                setSelectedSku(p.sku);
-                                setProductSearch(p.name);
-                                setShowSuggestions(false);
-                              }}
-                              className="w-full text-left px-3 py-2.5 hover:bg-primary/5 border-b border-border/40 last:border-0 flex items-center justify-between gap-2 group"
+                              onClick={() => removeFromCart(item.sku)}
+                              className="p-1 rounded hover:bg-destructive/5 text-slate-400 hover:text-destructive transition duration-150"
+                              title="Remove item"
                             >
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-slate-800 group-hover:text-primary truncate">{p.name}</p>
-                                <p className="text-[9px] font-mono text-muted-foreground mt-0.5">
-                                  {p.sku} · {p.category}
-                                </p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-xs font-black text-primary font-mono">{formatNaira(p.price)}</p>
-                                <p className={`text-[9px] font-mono font-semibold ${
-                                  p.quantity <= (p.reorderLevel ?? 0) ? 'text-amber-500' : 'text-success'
-                                }`}>
-                                  {p.quantity} left
-                                </p>
-                              </div>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                          ))
-                        }
-                        {branchProducts.filter(p =>
-                          !productSearch ||
-                          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(productSearch.toLowerCase()) ||
-                          (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
-                        ).length === 0 && (
-                          <div className="px-4 py-6 text-center">
-                            <Search className="h-5 w-5 text-muted-foreground/30 mx-auto mb-2" />
-                            <p className="text-xxs text-muted-foreground font-medium">No products match <strong>{productSearch}</strong></p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Selected product chip */}
-                    {selectedSku && activeProduct && (
-                      <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold text-primary truncate">{activeProduct.name}</p>
-                          <p className="text-[9px] font-mono text-muted-foreground">{activeProduct.sku} · {activeProduct.quantity} in stock</p>
-                        </div>
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quantity and Price Preview */}
-                  {activeProduct && (
-                    <div className="p-3 rounded-xl border border-border bg-slate-50/55 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-150">
-                      <div>
-                        <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                          Checkout Quantity
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={activeProduct.quantity}
-                          value={saleQty}
-                          onChange={(e) => {
-                            setSaleQty(Math.max(1, parseInt(e.target.value) || 1));
-                            setAppliedDiscount(null);
-                            setDiscountSuccess('');
-                          }}
-                          className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
-                          required
-                        />
-                      </div>
-                      <div className="text-right flex flex-col justify-center">
-                        <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">
-                          Receipt Total
-                        </span>
-                        {appliedDiscount ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-[10px] line-through text-muted-foreground font-mono">
-                              {formatNaira(subtotal)}
-                            </span>
-                            <span className="text-sm font-black text-success font-mono mt-0.5 animate-pulse">
-                              {formatNaira(discountedSaleAmount)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-sm font-black text-primary font-mono mt-0.5">
-                            {formatNaira(subtotal)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Discount Code */}
-                  {activeProduct && (
-                    <div className="space-y-1.5 p-3 rounded-xl border border-border bg-slate-50/55 animate-in slide-in-from-top-2 duration-150">
-                      <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                        Discount Coupon
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={discountCode}
-                          onChange={(e) => setDiscountCode(e.target.value)}
-                          placeholder="e.g. WELCOME10"
-                          className="h-8 flex-1 rounded-lg border border-border bg-card px-3 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase font-mono font-bold"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyDiscount}
-                          className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-750"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                      {discountError && (
-                        <p className="text-[9px] text-destructive font-medium mt-1">{discountError}</p>
-                      )}
-                      {discountSuccess && (
-                        <p className="text-[9px] text-success font-semibold mt-1">{discountSuccess}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Payment Method */}
-                  <div>
-                    <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                      Payment Gateway
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['CASH', 'POS', 'TRANSFER'] as const).map((method) => (
-                        <button
-                          key={method}
-                          type="button"
-                          onClick={() => setPaymentMethod(method)}
-                          className={`py-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition duration-150 ${
-                            paymentMethod === method
-                              ? 'bg-primary/5 border-primary text-primary'
-                              : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-slate-50'
-                          }`}
-                        >
-                          {method}
-                        </button>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
+                      {cartItems.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-muted-foreground bg-slate-50/10">
+                            <ShoppingBag className="h-10 w-10 text-muted-foreground/15 mx-auto mb-2" />
+                            <p className="text-xs font-bold uppercase">Your checkout cart is empty</p>
+                            <p className="text-[10px] mt-1">Search and select items above to start building a sale.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+
+          {/* Column 3: Summary, Coupons, and Recent Receipts */}
+          <div className="lg:col-span-1 space-y-6">
+            
+            {/* Checkout Totals & Payment */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/20">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Order Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                
+                {/* Cost Details */}
+                <div className="space-y-2 text-xxs font-mono border-b border-border/60 pb-3">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal:</span>
+                    <span>{formatNaira(subtotal)}</span>
                   </div>
-
-                  {/* Status Alerts */}
-                  {saleError && (
-                    <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-xxs text-destructive font-medium">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{saleError}</span>
+                  {appliedDiscount && (
+                    <div className="flex justify-between text-success font-semibold">
+                      <span>Discount ({appliedDiscount.code}):</span>
+                      <span>-{formatNaira(subtotal - discountedSaleAmount)}</span>
                     </div>
                   )}
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-800 pt-1 border-t border-dashed border-border">
+                    <span>Net Total:</span>
+                    <span className="text-sm font-black text-primary font-mono">{formatNaira(discountedSaleAmount)}</span>
+                  </div>
+                </div>
 
-                  {saleSuccess && (
-                    <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-success/15 border border-success/20 text-xxs text-success font-semibold">
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      <span>{saleSuccess}</span>
-                    </div>
+                {/* Discount Coupons */}
+                <div className="space-y-1.5 p-3 rounded-xl border border-border bg-slate-50/55">
+                  <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Apply Coupon Code
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={discountCode}
+                      onChange={(e) => setDiscountCode(e.target.value)}
+                      placeholder="e.g. WELCOME10"
+                      className="h-8 flex-1 rounded-lg border border-border bg-card px-2.5 text-[10px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyDiscount}
+                      className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-700"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {discountError && (
+                    <p className="text-[9px] text-destructive font-medium mt-1">{discountError}</p>
                   )}
+                  {discountSuccess && (
+                    <p className="text-[9px] text-success font-semibold mt-1">{discountSuccess}</p>
+                  )}
+                </div>
 
+                {/* Payment Gateway */}
+                <div className="space-y-1.5">
+                  <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground">
+                    Payment Gateway
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['CASH', 'POS', 'TRANSFER'] as const).map((method) => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPaymentMethod(method)}
+                        className={`py-2 rounded-lg text-[9px] font-bold tracking-wider uppercase border transition duration-150 ${
+                          paymentMethod === method
+                            ? 'bg-primary/5 border-primary text-primary font-black'
+                            : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-slate-50'
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Alerts */}
+                {saleError && (
+                  <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-xxs text-destructive font-medium">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span className="leading-tight">{saleError}</span>
+                  </div>
+                )}
+
+                {saleSuccess && (
+                  <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-success/15 border border-success/20 text-xxs text-success font-semibold">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span className="leading-tight">{saleSuccess}</span>
+                  </div>
+                )}
+
+                {/* Checkout Submit */}
+                <form onSubmit={handleRegisterSale}>
                   <Button
                     type="submit"
                     variant="primary"
-                    disabled={isSubmittingSale || !selectedSku}
+                    disabled={isSubmittingSale || cartItems.length === 0}
                     className="w-full h-10 text-xs font-bold uppercase tracking-wider"
                   >
-                    {isSubmittingSale ? 'Processing Transaction...' : 'Register Sale & Deduct Stock'}
+                    {isSubmittingSale ? 'Processing...' : 'Checkout & Print Receipt'}
                   </Button>
-
                 </form>
+
               </CardContent>
             </Card>
-          </div>
 
-          {/* Column 2: Recent Receipts Ledger */}
-          <div className="lg:col-span-1">
-            <Card className="border border-border bg-card shadow-sm h-full flex flex-col">
-              <CardHeader className="border-b border-border/20 pb-4">
+            {/* Collapsible Recent Receipts Ledger */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/20">
                 <div className="flex items-center gap-2">
-                  <Receipt className="h-4.5 w-4.5 text-primary" />
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
-                    Receipt Ledger
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Receipts Ledger
                   </CardTitle>
                 </div>
-                <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
-                  Checkout records for {activeBranchName}
+                <CardDescription className="text-[10px] text-muted-foreground mt-0.5">
+                  Click on any receipt below to reprint
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0 overflow-y-auto max-h-[380px] custom-scrollbar flex-1">
+              <CardContent className="p-0 overflow-y-auto max-h-[220px] custom-scrollbar">
                 {receipts.filter(r => r.branchId === activeBranchId).map((rec) => (
-                  <div 
+                  <button
                     key={rec.id}
-                    className="p-3.5 border-b border-border/50 flex items-center justify-between gap-3 text-xxs bg-slate-50/10 hover:bg-slate-50/30 transition duration-150"
+                    type="button"
+                    onClick={() => {
+                      setSelectedReceiptForModal(rec);
+                      setIsReceiptModalOpen(true);
+                    }}
+                    className="w-full text-left p-3.5 border-b border-border/50 flex items-center justify-between gap-3 text-xxs bg-slate-50/10 hover:bg-primary/5 transition duration-150 border-r-2 border-r-transparent hover:border-r-primary group"
                   >
-                    <div>
-                      <span className="font-bold text-slate-800 text-xs block">{rec.productName}</span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-slate-800 text-xs block truncate group-hover:text-primary transition duration-150">
+                        {rec.items && rec.items.length > 0
+                          ? rec.items.map(item => item.productName).join(', ')
+                          : 'Standard Sale'}
+                      </span>
                       <span className="text-[10px] text-muted-foreground font-mono mt-1 block">
-                        {rec.sku} • {rec.quantity} units
+                        {rec.items ? rec.items.length : 1} item(s) · {rec.items ? rec.items.reduce((sum, i) => sum + i.quantity, 0) : 1} units
                         {rec.discountApplied && (
                           <span className="text-success font-bold ml-1">
                             ({rec.discountApplied.code})
@@ -682,39 +817,38 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                         )}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="font-black text-slate-800 font-mono block">{formatNaira(rec.totalAmount)}</span>
-                      <Badge variant="outline" className="text-[7.5px] uppercase font-mono tracking-wider scale-90 mt-1.5 py-0 px-1 select-none">
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-slate-800 font-mono block group-hover:text-primary transition duration-150">{formatNaira(rec.totalAmount)}</span>
+                      <Badge variant="outline" className="text-[7.5px] uppercase font-mono tracking-wider scale-90 mt-1 py-0 px-1 select-none">
                         {rec.paymentMethod}
                       </Badge>
                     </div>
-                  </div>
+                  </button>
                 ))}
-                
                 {receipts.filter(r => r.branchId === activeBranchId).length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-1">
-                    <ShoppingBag className="h-8 w-8 text-muted-foreground/20" />
-                    <p className="text-xs font-bold text-muted-foreground uppercase mt-2">No transaction receipts</p>
-                    <p className="text-[10px] text-muted-foreground">Register sales above to populate receipts.</p>
+                  <div className="py-8 text-center text-muted-foreground bg-slate-50/10">
+                    <ShoppingBag className="h-6 w-6 text-muted-foreground/15 mx-auto mb-2" />
+                    <p className="text-[10px] font-bold uppercase">No recent transactions</p>
                   </div>
                 )}
               </CardContent>
             </Card>
+
           </div>
 
-          {/* Column 3: Reconciliation Logs */}
+          {/* Column 4: Daily Drawer Reconciliation */}
           <div className="lg:col-span-1 space-y-6">
             
-            {/* Reconciliation Logger form */}
+            {/* Reconciliation Logger */}
             <Card className="border border-border bg-card shadow-sm">
               <CardHeader className="border-b border-border/20 pb-4">
                 <div className="flex items-center gap-2">
-                  <Calculator className="h-4.5 w-4.5 text-primary" />
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
                     Drawer Reconciliation
                   </CardTitle>
                 </div>
-                <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
+                <CardDescription className="text-[10px] text-muted-foreground mt-0.5">
                   Verify expected vs actual cash drawer
                 </CardDescription>
               </CardHeader>
@@ -764,11 +898,11 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
               </CardContent>
             </Card>
 
-            {/* Reconciliation History List */}
+            {/* Reconciliation History */}
             <Card className="border border-border bg-card shadow-sm">
               <CardHeader className="border-b border-border/20 py-3.5">
                 <div className="flex items-center gap-2">
-                  <Scale className="h-4.5 w-4.5 text-primary" />
+                  <Scale className="h-4 w-4 text-primary" />
                   <CardTitle className="text-xxs font-black uppercase tracking-wider text-foreground">
                     Reconciliation History
                   </CardTitle>
@@ -809,6 +943,23 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           </div>
 
         </div>
+
+        {/* Modal display for printing receipt */}
+        <ReceiptModal
+          isOpen={isReceiptModalOpen}
+          onClose={() => setIsReceiptModalOpen(false)}
+          receiptData={selectedReceiptForModal ? {
+            id: selectedReceiptForModal.id,
+            items: selectedReceiptForModal.items,
+            totalAmount: selectedReceiptForModal.totalAmount,
+            paymentMethod: selectedReceiptForModal.paymentMethod,
+            timestamp: selectedReceiptForModal.timestamp,
+            branchName: selectedReceiptForModal.branchName,
+            cashierName: currentUser?.name || 'Staff',
+            discountApplied: selectedReceiptForModal.discountApplied,
+            originalAmount: selectedReceiptForModal.originalAmount
+          } : null}
+        />
       </div>
     );
   }
@@ -984,13 +1135,21 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
               {scopedReceipts.map((rec) => (
                 <div 
                   key={rec.id}
-                  className="p-3.5 border-b border-border/40 text-[10px] space-y-1.5 hover:bg-slate-50/30 transition duration-150 bg-slate-50/10"
+                  onClick={() => {
+                    setSelectedReceiptForModal(rec);
+                    setIsReceiptModalOpen(true);
+                  }}
+                  className="p-3.5 border-b border-border/40 text-[10px] space-y-1.5 hover:bg-primary/5 transition duration-150 bg-slate-50/10 cursor-pointer"
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <span className="font-bold text-slate-800 text-[11px] block leading-tight">{rec.productName}</span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-slate-800 text-[11px] block leading-tight truncate">
+                        {rec.items && rec.items.length > 0
+                          ? rec.items.map(item => item.productName).join(', ')
+                          : 'Standard Sale'}
+                      </span>
                       <span className="text-[9px] text-muted-foreground font-mono leading-none mt-1 block">
-                        {rec.sku} • {rec.quantity} units
+                        {rec.items ? rec.items.length : 1} item(s) · {rec.items ? rec.items.reduce((sum, i) => sum + i.quantity, 0) : 1} units
                         {rec.discountApplied && (
                           <span className="text-success font-bold ml-1">
                             ({rec.discountApplied.code})
@@ -998,7 +1157,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                         )}
                       </span>
                     </div>
-                    <span className="font-black text-slate-800 font-mono text-xs">{formatNaira(rec.totalAmount)}</span>
+                    <span className="font-black text-slate-800 font-mono text-xs shrink-0">{formatNaira(rec.totalAmount)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[9px] text-muted-foreground uppercase font-bold tracking-wider pt-0.5">
                     <span className="text-primary/80 font-mono">{rec.branchName}</span>
@@ -1063,6 +1222,23 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
         </div>
 
       </div>
+
+      {/* Modal display for printing receipt */}
+      <ReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        receiptData={selectedReceiptForModal ? {
+          id: selectedReceiptForModal.id,
+          items: selectedReceiptForModal.items,
+          totalAmount: selectedReceiptForModal.totalAmount,
+          paymentMethod: selectedReceiptForModal.paymentMethod,
+          timestamp: selectedReceiptForModal.timestamp,
+          branchName: selectedReceiptForModal.branchName,
+          cashierName: currentUser?.name || 'Staff',
+          discountApplied: selectedReceiptForModal.discountApplied,
+          originalAmount: selectedReceiptForModal.originalAmount
+        } : null}
+      />
 
     </div>
   );

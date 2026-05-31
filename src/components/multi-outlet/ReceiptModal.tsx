@@ -5,12 +5,16 @@ import { Printer, X, Receipt, CheckCircle2 } from 'lucide-react';
 // Types
 // ---------------------------------------------------------------------------
 
-interface ReceiptData {
-  id: string;
+interface ReceiptItem {
   productName: string;
   sku: string;
   quantity: number;
   unitPrice: number;
+}
+
+interface ReceiptData {
+  id: string;
+  items: ReceiptItem[];
   totalAmount: number;
   paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
   timestamp: string;
@@ -187,23 +191,32 @@ const ReceiptBody: React.FC<ReceiptBodyProps> = ({ data, printMode = false }) =>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="py-1.5 pr-1 leading-tight">
-              <div className={printMode ? 'font-semibold' : 'font-semibold text-gray-900'}>
-                {data.productName}
-              </div>
-              <div className={printMode ? 'text-[10px]' : 'text-[10px] text-gray-500'}>
-                SKU: {data.sku}
-              </div>
-            </td>
-            <td className="py-1.5 text-center">{data.quantity}</td>
-            <td className="py-1.5 text-right whitespace-nowrap">
-              {formatNaira(data.unitPrice)}
-            </td>
-            <td className="py-1.5 text-right whitespace-nowrap font-semibold">
-              {formatNaira(data.unitPrice * data.quantity)}
-            </td>
-          </tr>
+          {data.items.map((item, idx) => (
+            <tr
+              key={idx}
+              className={
+                printMode
+                  ? 'border-b border-dotted border-black/40 last:border-0'
+                  : 'border-b border-dotted border-gray-200 last:border-0'
+              }
+            >
+              <td className="py-1.5 pr-1 leading-tight">
+                <div className={printMode ? 'font-semibold' : 'font-semibold text-gray-900'}>
+                  {item.productName}
+                </div>
+                <div className={printMode ? 'text-[10px]' : 'text-[10px] text-gray-500'}>
+                  SKU: {item.sku}
+                </div>
+              </td>
+              <td className="py-1.5 text-center">{item.quantity}</td>
+              <td className="py-1.5 text-right whitespace-nowrap font-mono">
+                {formatNaira(item.unitPrice)}
+              </td>
+              <td className="py-1.5 text-right whitespace-nowrap font-semibold font-mono">
+                {formatNaira(item.unitPrice * item.quantity)}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
