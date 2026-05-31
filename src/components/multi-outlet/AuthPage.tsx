@@ -3,7 +3,7 @@ import { useSession } from '../../application/context/SessionContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Shield, KeyRound, Mail, AlertCircle, Sparkles } from 'lucide-react';
+import { Shield, KeyRound, Mail, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 export const AuthPage: React.FC = () => {
   const { login, users } = useSession();
@@ -11,6 +11,7 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,22 +22,24 @@ export const AuthPage: React.FC = () => {
 
     // Simulate network delay
     setTimeout(() => {
-      const success = login(email);
+      const success = login(email, password);
       setIsLoading(false);
       if (!success) {
-        setError('Invalid credentials. No registered staff account matches this email.');
+        setError('Invalid credentials. Incorrect password or no matching email.');
       }
     }, 600);
   };
 
   const handleQuickLogin = (demoEmail: string) => {
+    const matchedUser = users.find(u => u.email.toLowerCase() === demoEmail.toLowerCase());
+    const pass = matchedUser?.password || 'password123';
     setEmail(demoEmail);
-    setPassword('••••••••');
+    setPassword(pass);
     setIsLoading(true);
     setError('');
 
     setTimeout(() => {
-      login(demoEmail);
+      login(demoEmail, pass);
       setIsLoading(false);
     }, 400);
   };
@@ -104,14 +107,22 @@ export const AuthPage: React.FC = () => {
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-2.5 h-4.5 w-4.5 text-muted-foreground/60" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-4 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 transition"
+                    className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-10 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 transition"
                     required
                     disabled={isLoading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="absolute right-3 top-2.5 text-muted-foreground/60 hover:text-primary transition duration-150"
+                    aria-label={showPassword ? "Hide passcode" : "Show passcode"}
+                  >
+                    {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
                 </div>
               </div>
 

@@ -7,19 +7,27 @@ import { Select } from '../ui/Select';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../ui/Table';
 import { MOCK_BRANCHES } from '../../data/mock/mockData';
 import { User, UserRole } from '../../domain/entities/models';
-import { UserPlus, UserCog, Check } from 'lucide-react';
+import { UserPlus, UserCog, Check, Eye, EyeOff, KeyRound, X, Lock } from 'lucide-react';
 
 export const UserManagementPanel: React.FC = () => {
-  const { canManageUsers, currentUser, users, createUser, updateUser, deleteUser } = useSession();
+  const { canManageUsers, currentUser, users, createUser, updateUser, deleteUser, resetUserPassword } = useSession();
 
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('DISPENSER');
   const [branchId, setBranchId] = useState('br-ikeja');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [notification, setNotification] = useState('');
+
+  // Reset password modal states
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<User | null>(null);
+  const [resetPasswordVal, setResetPasswordVal] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   if (!canManageUsers || !currentUser) return null;
 
@@ -29,13 +37,15 @@ export const UserManagementPanel: React.FC = () => {
 
     if (editingUserId) {
       // Modify existing user
+      const existingUser = users.find(u => u.id === editingUserId);
       updateUser({
         id: editingUserId,
         name,
         email,
         role,
         branchId: role === 'SUPER_ADMIN' || role === 'REGIONAL_MANAGER' ? undefined : branchId,
-        assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined
+        assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined,
+        password: existingUser?.password
       });
       setNotification(`Successfully modified user: ${name}`);
       setEditingUserId(null);
@@ -46,7 +56,8 @@ export const UserManagementPanel: React.FC = () => {
         email,
         role,
         branchId: role === 'SUPER_ADMIN' || role === 'REGIONAL_MANAGER' ? undefined : branchId,
-        assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined
+        assignedRegionIds: role === 'REGIONAL_MANAGER' ? ['reg-lagos'] : undefined,
+        password: password.trim() || 'password123'
       });
       setNotification(`Successfully registered new user: ${name}`);
     }
@@ -56,7 +67,29 @@ export const UserManagementPanel: React.FC = () => {
     setEmail('');
     setRole('DISPENSER');
     setBranchId('br-ikeja');
+    setPassword('');
+    setShowPassword(false);
 
+    setTimeout(() => setNotification(''), 3000);
+  };
+
+  const handleResetPasswordClick = (user: User) => {
+    setResetTargetUser(user);
+    setResetPasswordVal('');
+    setShowResetPassword(false);
+    setIsResetModalOpen(true);
+  };
+
+  const handleConfirmResetPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetUser || !resetPasswordVal.trim()) return;
+
+    resetUserPassword(resetTargetUser.id, resetPasswordVal.trim());
+    setNotification(`Successfully reset password for ${resetTargetUser.name}`);
+    setIsResetModalOpen(false);
+    setResetTargetUser(null);
+    setResetPasswordVal('');
+    
     setTimeout(() => setNotification(''), 3000);
   };
 
@@ -135,6 +168,28 @@ export const UserManagementPanel: React.FC = () => {
                 required
               />
             </div>
+            {!editingUserId && (
+              <div>
+                <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">Passcode / Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Set passcode (defaults to password123)"
+                    className="h-9 w-full rounded-lg border border-border bg-card pl-3 pr-10 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="absolute right-3 top-2 text-muted-foreground/60 hover:text-primary transition duration-150"
+                    aria-label={showPassword ? "Hide passcode" : "Show passcode"}
+                  >
+                    {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">Security Role</label>
@@ -223,6 +278,13 @@ export const UserManagementPanel: React.FC = () => {
                       </Button>
                       <Button 
                         variant="ghost" 
+                        className="h-7 text-xxs text-primary hover:bg-primary/10"
+                        onClick={() => handleResetPasswordClick(u)}
+                      >
+                        Reset Pass
+                      </Button>
+                      <Button 
+                        variant="ghost" 
                         className="h-7 text-xxs text-destructive hover:bg-destructive/10"
                         onClick={() => handleDeleteUser(u.id)}
                         disabled={u.id === currentUser.id}
@@ -238,6 +300,86 @@ export const UserManagementPanel: React.FC = () => {
         </div>
 
       </CardContent>
+
+      {/* Reset Password Modal */}
+      {isResetModalOpen && resetTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div 
+            className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-modal-title"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-muted/40">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4.5 w-4.5 text-primary" />
+                <h2 id="reset-modal-title" className="text-base font-bold uppercase tracking-wider text-foreground">
+                  Reset Password
+                </h2>
+              </div>
+              <button 
+                onClick={() => { setIsResetModalOpen(false); setResetTargetUser(null); }} 
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                aria-label="Close modal"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConfirmResetPassword} className="p-6 space-y-4">
+              <p className="text-xs text-foreground leading-relaxed">
+                Assign a new security passcode for <strong className="text-slate-800">{resetTargetUser.name}</strong>. The user must use this new passcode on their next login session.
+              </p>
+
+              <div>
+                <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  New Security Passcode
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-2.5 h-4.5 w-4.5 text-muted-foreground/60" />
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={resetPasswordVal}
+                    onChange={(e) => setResetPasswordVal(e.target.value)}
+                    placeholder="Enter new password (e.g. fatimanew123)"
+                    className="h-10 w-full rounded-lg border border-border bg-card pl-10 pr-10 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(prev => !prev)}
+                    className="absolute right-3 top-2.5 text-muted-foreground/60 hover:text-primary transition duration-150"
+                    aria-label={showResetPassword ? "Hide passcode" : "Show passcode"}
+                  >
+                    {showResetPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/30">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => { setIsResetModalOpen(false); setResetTargetUser(null); }} 
+                  className="h-9 text-xxs uppercase tracking-wider"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  className="h-9 text-xxs uppercase tracking-wider"
+                >
+                  Save Password
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

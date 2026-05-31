@@ -26,6 +26,7 @@ export interface User {
   role: UserRole;
   branchId?: string; // Empty for SUPER_ADMIN or REGIONAL_MANAGER who have broader access
   assignedRegionIds?: string[]; // Used by REGIONAL_MANAGER to scope their visibility
+  password?: string;
 }
 
 export interface StockTransfer {

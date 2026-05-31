@@ -7,35 +7,40 @@ const INITIAL_USERS: User[] = [
     id: 'usr-sa',
     name: 'Adebayo Folorunsho (CEO)',
     email: 'ceo@pharmcare.com',
-    role: 'SUPER_ADMIN'
+    role: 'SUPER_ADMIN',
+    password: 'ceo123'
   },
   {
     id: 'usr-rm',
     name: 'Dr. Lola Adebayo (Regional Manager)',
     email: 'l.adebayo@pharmcare.com',
     role: 'REGIONAL_MANAGER',
-    assignedRegionIds: ['reg-lagos']
+    assignedRegionIds: ['reg-lagos'],
+    password: 'lola123'
   },
   {
     id: 'usr-ad',
     name: 'Dr. Chinedu Okafor (Ikeja Branch Lead)',
     email: 'c.okafor@pharmcare.com',
     role: 'ADMIN',
-    branchId: 'br-ikeja'
+    branchId: 'br-ikeja',
+    password: 'chinedu123'
   },
   {
     id: 'usr-ph',
     name: 'Dr. Fatima Umar (Lekki Pharmacist)',
     email: 'f.umar@pharmcare.com',
     role: 'PHARMACIST',
-    branchId: 'br-lekki'
+    branchId: 'br-lekki',
+    password: 'fatima123'
   },
   {
     id: 'usr-dp',
     name: 'Kemi Balogun (Ikeja Dispenser)',
     email: 'k.balogun@pharmcare.com',
     role: 'DISPENSER',
-    branchId: 'br-ikeja'
+    branchId: 'br-ikeja',
+    password: 'kemi123'
   }
 ];
 
@@ -44,7 +49,7 @@ interface SessionContextType {
   isAuthenticated: boolean;
   selectedRegionId: string | 'all';
   selectedOutletId: string | 'all';
-  login: (email: string) => boolean;
+  login: (email: string, password?: string) => boolean;
   logout: () => void;
   changeSelection: (regionId: string | 'all', outletId: string | 'all') => void;
   
@@ -53,6 +58,7 @@ interface SessionContextType {
   createUser: (user: Omit<User, 'id'>) => void;
   updateUser: (user: User) => void;
   deleteUser: (id: string) => void;
+  resetUserPassword: (id: string, newPassword: string) => void;
 
   canManageUsers: boolean;
   isSyncing: boolean;
@@ -73,9 +79,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'REGIONAL_MANAGER';
   }, [currentUser]);
 
-  const login = useCallback((email: string) => {
+  const login = useCallback((email: string, password?: string) => {
     const profile = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!profile) return false;
+
+    // Check passcode match
+    const expectedPass = profile.password || 'password123';
+    if (password && password !== expectedPass) {
+      return false;
+    }
 
     setCurrentUser(profile);
     
@@ -129,6 +141,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setUsers(prev => prev.filter(u => u.id !== id));
   }, []);
 
+  const resetUserPassword = useCallback((id: string, newPassword: string) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, password: newPassword } : u));
+  }, []);
+
   return (
     <SessionContext.Provider value={{
       currentUser: currentUser as User, // Safe typecast since layout guarantees auth boundaries
@@ -142,6 +158,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       createUser,
       updateUser,
       deleteUser,
+      resetUserPassword,
       canManageUsers,
       isSyncing
     }}>
