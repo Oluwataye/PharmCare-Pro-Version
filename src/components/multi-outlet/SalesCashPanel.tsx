@@ -142,6 +142,60 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     return branches.find(b => b.id === activeBranchId)?.name || 'Active Outlet';
   }, [activeBranchId, branches]);
 
+  // Session recovery banner
+  const [restoredBanner, setRestoredBanner] = useState('');
+
+  // Storage key for cart persistence
+  const storageKey = useMemo(() => {
+    if (!currentUser || !activeBranchId) return '';
+    return `pharmcare_cart_${currentUser.id}_${activeBranchId}`;
+  }, [currentUser, activeBranchId]);
+
+  // Keep track of the last loaded storage key to avoid writing empty arrays during load phase
+  const lastLoadedKeyRef = React.useRef<string>('');
+
+  // Load saved cart when operator or active branch changes
+  React.useEffect(() => {
+    let timer: any = null;
+    if (!storageKey) {
+      setCartItems([]);
+      lastLoadedKeyRef.current = '';
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCartItems(parsed);
+        if (parsed.length > 0) {
+          setRestoredBanner('Active cart session recovered.');
+          timer = setTimeout(() => setRestoredBanner(''), 4000);
+        }
+      } else {
+        setCartItems([]);
+      }
+    } catch (e) {
+      console.error('Failed to load cart from localStorage:', e);
+      setCartItems([]);
+    }
+    lastLoadedKeyRef.current = storageKey;
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [storageKey]);
+
+  // Save cart changes to localStorage
+  React.useEffect(() => {
+    if (!storageKey || storageKey !== lastLoadedKeyRef.current) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(cartItems));
+    } catch (e) {
+      console.error('Failed to save cart to localStorage:', e);
+    }
+  }, [cartItems, storageKey]);
+
   // Scoped list of branches governed by logged-in role
   const visibleBranches = useMemo(() => {
     if (!currentUser) return [];
@@ -487,6 +541,24 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           </div>
         </div>
 
+        {/* Session Restored Alert Banner */}
+        {restoredBanner && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100 text-xxs text-blue-800 font-semibold uppercase tracking-wider animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4.5 w-4.5 text-blue-600 shrink-0" />
+              <span>{restoredBanner}</span>
+            </div>
+            <button 
+              onClick={() => setRestoredBanner('')} 
+              className="text-blue-500 hover:text-blue-700 transition"
+              type="button"
+              aria-label="Dismiss banner"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* 3-Column POS Cart layout */}
         <div className="grid gap-6 lg:grid-cols-4">
           
@@ -586,10 +658,24 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
             {/* Shopping Cart Items Table */}
             <Card className="border border-border bg-card shadow-sm overflow-hidden">
-              <CardHeader className="pb-3 border-b border-border/20">
+              <CardHeader className="pb-3 border-b border-border/20 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
                   Current Sale Items ({cartItems.length}/15 unique)
                 </CardTitle>
+                {cartItems.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCartItems([]);
+                      setSaleError('');
+                    }}
+                    className="h-7 text-[9px] uppercase tracking-wider text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive transition-all duration-150"
+                  >
+                    Clear Cart
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto max-h-[350px] overflow-y-auto custom-scrollbar">
