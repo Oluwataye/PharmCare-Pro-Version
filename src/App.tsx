@@ -123,7 +123,7 @@ const App: React.FC = () => {
         <main className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
           <OutletSelector />
           <div className="min-h-[500px]">
-            {activePanel === 'overview'        && <OverviewPanel />}
+            {activePanel === 'overview'        && <OverviewPanel onNavigateToPOS={() => setActivePanel('sales')} />}
             {activePanel === 'inventory'       && <InventoryPanel />}
             {activePanel === 'transfers'       && <LogisticsPanel onInventoryMutated={refetchInventory} />}
             {activePanel === 'sales'           && <SalesCashPanel onInventoryMutated={refetchInventory} />}

@@ -1756,7 +1756,14 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           branchName: selectedReceiptForModal.branchName,
           cashierName: currentUser?.name || 'Staff',
           discountApplied: selectedReceiptForModal.discountApplied,
-          originalAmount: selectedReceiptForModal.originalAmount
+          originalAmount: selectedReceiptForModal.originalAmount,
+          customerName: selectedReceiptForModal.customerName,
+          customerPhone: selectedReceiptForModal.customerPhone,
+          customerEmail: selectedReceiptForModal.customerEmail,
+          prescriptionId: selectedReceiptForModal.prescriptionId,
+          doctorName: selectedReceiptForModal.doctorName,
+          dosageInstructions: selectedReceiptForModal.dosageInstructions,
+          billingNotes: selectedReceiptForModal.billingNotes
         } : null}
       />
 

@@ -34,3 +34,6 @@ Thumbs.db
 EHthumbs.db
 Desktop.ini
 .DS_Store
+
+# Local Netlify folder
+.netlify
