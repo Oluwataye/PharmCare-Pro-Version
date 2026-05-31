@@ -4,13 +4,12 @@ import { StockTransfer } from '../../domain/entities/models';
 import { MockTransferRepository } from '../../data/mock/transferRepo';
 import { MockInventoryRepository } from '../../data/mock/inventoryRepo';
 import { stockRules } from '../../domain/services/stockRules';
-import { MOCK_BRANCHES } from '../../data/mock/mockData';
 
 const transferRepo = new MockTransferRepository();
 const inventoryRepo = new MockInventoryRepository();
 
 export const useTransferUseCase = (onInventoryMutated?: () => void) => {
-  const { currentUser, selectedRegionId, selectedOutletId } = useSession();
+  const { currentUser, selectedRegionId, selectedOutletId, branches } = useSession();
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -38,7 +37,7 @@ export const useTransferUseCase = (onInventoryMutated?: () => void) => {
     if (selectedOutletId !== 'all') {
       list = transfers.filter(t => t.sourceBranchId === selectedOutletId || t.destinationBranchId === selectedOutletId);
     } else if (selectedRegionId !== 'all') {
-      const regionBranchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      const regionBranchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
       list = transfers.filter(t => regionBranchIds.includes(t.sourceBranchId) || regionBranchIds.includes(t.destinationBranchId));
     }
 
@@ -72,8 +71,8 @@ export const useTransferUseCase = (onInventoryMutated?: () => void) => {
         throw new Error(stockCheck.reason);
       }
 
-      const sourceBranchName = MOCK_BRANCHES.find(b => b.id === sourceBranchId)!.name;
-      const destBranchName = MOCK_BRANCHES.find(b => b.id === destBranchId)!.name;
+      const sourceBranchName = branches.find(b => b.id === sourceBranchId)!.name;
+      const destBranchName = branches.find(b => b.id === destBranchId)!.name;
 
       // 3. Persist Request
       await transferRepo.createTransfer({
@@ -147,4 +146,3 @@ export const useTransferUseCase = (onInventoryMutated?: () => void) => {
     rejectTransfer
   };
 };
-export { MOCK_BRANCHES };

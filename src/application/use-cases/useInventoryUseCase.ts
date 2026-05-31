@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from '../context/SessionContext';
 import { InventoryItem } from '../../domain/entities/models';
 import { MockInventoryRepository } from '../../data/mock/inventoryRepo';
-import { MOCK_BRANCHES } from '../../data/mock/mockData';
 
 // Shared instance of repo for consistency
 const inventoryRepo = new MockInventoryRepository();
 
 export const useInventoryUseCase = () => {
-  const { selectedRegionId, selectedOutletId, isSyncing } = useSession();
+  const { selectedRegionId, selectedOutletId, isSyncing, branches } = useSession();
   const [rawInventory, setRawInventory] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,7 +34,7 @@ export const useInventoryUseCase = () => {
     if (selectedOutletId !== 'all') {
       list = rawInventory.filter(i => i.branchId === selectedOutletId);
     } else if (selectedRegionId !== 'all') {
-      const regionBranchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      const regionBranchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
       list = rawInventory.filter(i => regionBranchIds.includes(i.branchId));
     }
     // Sort so depleted stock items bubble up to prompt action

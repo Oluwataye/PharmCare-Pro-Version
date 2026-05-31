@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { MOCK_REGIONS, MOCK_BRANCHES, generateMockSalesReports } from '../../data/mock/mockData';
+import { useSession } from '../../application/context/SessionContext';
+import { MOCK_REGIONS, generateMockSalesReports } from '../../data/mock/mockData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { formatNaira } from '../../lib/utils';
 import { Badge } from '../ui/Badge';
 import { Globe, MapPin, Milestone } from 'lucide-react';
 
 export const RegionalDistribution: React.FC = () => {
+  const { branches } = useSession();
   const regions = MOCK_REGIONS;
-  const branches = MOCK_BRANCHES;
   const salesReports = useMemo(() => generateMockSalesReports(), []);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 

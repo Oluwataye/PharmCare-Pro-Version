@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useSession } from '../../application/context/SessionContext';
 import { useInventoryUseCase } from '../../application/use-cases/useInventoryUseCase';
 import { useStaffUseCase } from '../../application/use-cases/useStaffUseCase';
-import { MOCK_BRANCHES, generateMockSalesReports } from '../../data/mock/mockData';
+import { generateMockSalesReports } from '../../data/mock/mockData';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { formatNaira } from '../../lib/utils';
@@ -14,7 +14,7 @@ import {
 const MOCK_SALES_REPORTS = generateMockSalesReports();
 
 export const ConsolidatedMetricsGrid: React.FC = () => {
-  const { selectedRegionId, selectedOutletId } = useSession();
+  const { selectedRegionId, selectedOutletId, branches } = useSession();
   const { inventory, rawInventory } = useInventoryUseCase();
   const { activeStaffInScope } = useStaffUseCase();
 
@@ -25,7 +25,7 @@ export const ConsolidatedMetricsGrid: React.FC = () => {
     if (selectedOutletId !== 'all') {
       filteredReports = MOCK_SALES_REPORTS.filter(r => r.branchId === selectedOutletId);
     } else if (selectedRegionId !== 'all') {
-      const regionBranchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      const regionBranchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
       filteredReports = MOCK_SALES_REPORTS.filter(r => regionBranchIds.includes(r.branchId));
     }
 

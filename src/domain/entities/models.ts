@@ -88,3 +88,29 @@ export interface SalesReportEntry {
   transferTotal: number;
   date: string;
 }
+
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface Discount {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number; // Percentage (e.g. 10 for 10%) or fixed amount (e.g. 500 for 500 Naira)
+  branchId: string | 'all'; // Scoped to a specific branch or nationwide
+  isActive: boolean;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactEmail: string;
+  contactPhone: string;
+  address?: string;
+  isActive: boolean;
+}
+

@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useSession } from '../../application/context/SessionContext';
 import { useInventoryUseCase } from '../../application/use-cases/useInventoryUseCase';
 import { useTransferUseCase } from '../../application/use-cases/useTransferUseCase';
-import { MOCK_BRANCHES } from '../../data/mock/mockData';
 import { Button } from '../ui/Button';
 
 import { Select, SelectOption } from '../ui/Select';
@@ -14,10 +13,9 @@ interface StockTransferModalProps {
 }
 
 export const StockTransferModal: React.FC<StockTransferModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser } = useSession();
+  const { currentUser, branches } = useSession();
   const { rawInventory: inventory } = useInventoryUseCase();
   const { requestTransfer: requestStockTransfer } = useTransferUseCase();
-  const branches = MOCK_BRANCHES;
 
   const [sourceBranchId, setSourceBranchId] = useState('br-warehouse'); // Default to central warehouse
   const [destBranchId, setDestBranchId] = useState(currentUser.branchId || 'br-ikeja');

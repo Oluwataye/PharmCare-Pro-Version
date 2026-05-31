@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Select } from '../ui/Select';
 import { formatNaira } from '../../lib/utils';
-import { MOCK_BRANCHES } from '../../data/mock/mockData';
+import { Discount } from '../../domain/entities/models';
 import { 
   ShoppingBag, CheckCircle2, AlertCircle, 
   Receipt, Calculator, Scale,
@@ -29,6 +29,12 @@ interface SimulatedReceipt {
   timestamp: string;
   branchId: string;
   branchName: string;
+  discountApplied?: {
+    code: string;
+    type: 'percentage' | 'fixed';
+    value: number;
+    discountAmount: number;
+  };
 }
 
 interface ReconciliationLog {
@@ -68,7 +74,7 @@ const INITIAL_RECONCILIATIONS: ReconciliationLog[] = [
 ];
 
 export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutated }) => {
-  const { selectedRegionId, selectedOutletId, currentUser } = useSession();
+  const { selectedRegionId, selectedOutletId, currentUser, branches, discounts } = useSession();
   const { rawInventory, refetch } = useInventoryUseCase();
 
   // Simulated internal ledgers
@@ -85,6 +91,12 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   const [saleError, setSaleError] = useState('');
   const [saleSuccess, setSaleSuccess] = useState('');
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
+
+  // Discount code states
+  const [discountCode, setDiscountCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
+  const [discountError, setDiscountError] = useState('');
+  const [discountSuccess, setDiscountSuccess] = useState('');
 
   // Form states - Reconciliation
   const [actualCashInput, setActualCashInput] = useState('');
@@ -104,22 +116,22 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
   const activeBranchName = useMemo(() => {
     if (!activeBranchId) return '';
-    return MOCK_BRANCHES.find(b => b.id === activeBranchId)?.name || 'Active Outlet';
-  }, [activeBranchId]);
+    return branches.find(b => b.id === activeBranchId)?.name || 'Active Outlet';
+  }, [activeBranchId, branches]);
 
   // Scoped list of branches governed by logged-in role
   const visibleBranches = useMemo(() => {
     if (!currentUser) return [];
     if (currentUser.role === 'SUPER_ADMIN') {
-      return MOCK_BRANCHES.filter(b => b.type === 'retail');
+      return branches.filter(b => b.type === 'retail');
     }
     if (currentUser.role === 'REGIONAL_MANAGER') {
       const regionIds = currentUser.assignedRegionIds || [];
-      return MOCK_BRANCHES.filter(b => b.type === 'retail' && regionIds.includes(b.regionId));
+      return branches.filter(b => b.type === 'retail' && regionIds.includes(b.regionId));
     }
     // Branch Admin, Pharmacist, Dispenser see only their branch
-    return MOCK_BRANCHES.filter(b => b.id === currentUser.branchId);
-  }, [currentUser]);
+    return branches.filter(b => b.id === currentUser.branchId);
+  }, [currentUser, branches]);
 
   // Compute products matching simulated or scoped branch
   const branchProducts = useMemo(() => {
@@ -132,10 +144,47 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   }, [branchProducts, selectedSku]);
 
   // Calculate receipt totals
-  const totalSaleAmount = useMemo(() => {
+  const subtotal = useMemo(() => {
     if (!activeProduct) return 0;
     return activeProduct.price * saleQty;
   }, [activeProduct, saleQty]);
+
+  const discountedSaleAmount = useMemo(() => {
+    if (!appliedDiscount) return subtotal;
+
+    if (appliedDiscount.type === 'percentage') {
+      const discountVal = (subtotal * appliedDiscount.value) / 100;
+      return Math.max(0, subtotal - discountVal);
+    } else {
+      return Math.max(0, subtotal - appliedDiscount.value);
+    }
+  }, [subtotal, appliedDiscount]);
+
+  const handleApplyDiscount = () => {
+    setDiscountError('');
+    setDiscountSuccess('');
+    setAppliedDiscount(null);
+
+    if (!discountCode.trim()) {
+      return;
+    }
+
+    const codeUpper = discountCode.trim().toUpperCase();
+    const match = discounts.find(d => d.code.toUpperCase() === codeUpper && d.isActive);
+
+    if (!match) {
+      setDiscountError('Invalid or expired code.');
+      return;
+    }
+
+    if (match.branchId !== 'all' && match.branchId !== activeBranchId) {
+      setDiscountError('Discount does not apply to this branch.');
+      return;
+    }
+
+    setAppliedDiscount(match);
+    setDiscountSuccess(`Discount "${match.code}" applied!`);
+  };
 
   // Filtered receipts & reconciliations based on scope
   const scopedReceipts = useMemo(() => {
@@ -143,22 +192,22 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       return receipts.filter(r => r.branchId === selectedOutletId);
     }
     if (selectedRegionId !== 'all') {
-      const branchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      const branchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
       return receipts.filter(r => branchIds.includes(r.branchId));
     }
     return receipts;
-  }, [receipts, selectedRegionId, selectedOutletId]);
+  }, [receipts, selectedRegionId, selectedOutletId, branches]);
 
   const scopedReconciliations = useMemo(() => {
     if (selectedOutletId !== 'all') {
       return reconciliations.filter(r => r.branchId === selectedOutletId);
     }
     if (selectedRegionId !== 'all') {
-      const branchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      const branchIds = branches.filter(b => b.regionId === selectedRegionId).map(b => b.id);
       return reconciliations.filter(r => branchIds.includes(r.branchId));
     }
     return reconciliations;
-  }, [reconciliations, selectedRegionId, selectedOutletId]);
+  }, [reconciliations, selectedRegionId, selectedOutletId, branches]);
 
   // Compute Expected Cash Sales for the active checkout branch session
   const expectedCashSales = useMemo(() => {
@@ -225,11 +274,17 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
         productName: activeProduct.name,
         sku: activeProduct.sku,
         quantity: saleQty,
-        totalAmount: totalSaleAmount,
+        totalAmount: discountedSaleAmount,
         paymentMethod,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         branchId: activeBranchId,
-        branchName: activeBranchName
+        branchName: activeBranchName,
+        discountApplied: appliedDiscount ? {
+          code: appliedDiscount.code,
+          type: appliedDiscount.type,
+          value: appliedDiscount.value,
+          discountAmount: subtotal - discountedSaleAmount
+        } : undefined
       };
 
       setReceipts(prev => [newReceipt, ...prev]);
@@ -238,6 +293,10 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       // Reset form
       setSelectedSku('');
       setSaleQty(1);
+      setDiscountCode('');
+      setAppliedDiscount(null);
+      setDiscountError('');
+      setDiscountSuccess('');
 
       // 3. Trigger inventory re-fetch
       await refetch();
@@ -286,6 +345,10 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     setSaleQty(1);
     setSaleError('');
     setSaleSuccess('');
+    setDiscountCode('');
+    setAppliedDiscount(null);
+    setDiscountError('');
+    setDiscountSuccess('');
   };
 
   // ----------------------------------------------------
@@ -379,7 +442,11 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                           min={1}
                           max={activeProduct.quantity}
                           value={saleQty}
-                          onChange={(e) => setSaleQty(Math.max(1, parseInt(e.target.value) || 1))}
+                          onChange={(e) => {
+                            setSaleQty(Math.max(1, parseInt(e.target.value) || 1));
+                            setAppliedDiscount(null);
+                            setDiscountSuccess('');
+                          }}
                           className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
                           required
                         />
@@ -388,10 +455,52 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                         <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">
                           Receipt Total
                         </span>
-                        <span className="text-sm font-black text-primary font-mono mt-0.5">
-                          {formatNaira(totalSaleAmount)}
-                        </span>
+                        {appliedDiscount ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] line-through text-muted-foreground font-mono">
+                              {formatNaira(subtotal)}
+                            </span>
+                            <span className="text-sm font-black text-success font-mono mt-0.5 animate-pulse">
+                              {formatNaira(discountedSaleAmount)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-black text-primary font-mono mt-0.5">
+                            {formatNaira(subtotal)}
+                          </span>
+                        )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Discount Code */}
+                  {activeProduct && (
+                    <div className="space-y-1.5 p-3 rounded-xl border border-border bg-slate-50/55 animate-in slide-in-from-top-2 duration-150">
+                      <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                        Discount Coupon
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={discountCode}
+                          onChange={(e) => setDiscountCode(e.target.value)}
+                          placeholder="e.g. WELCOME10"
+                          className="h-8 flex-1 rounded-lg border border-border bg-card px-3 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase font-mono font-bold"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyDiscount}
+                          className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-750"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                      {discountError && (
+                        <p className="text-[9px] text-destructive font-medium mt-1">{discountError}</p>
+                      )}
+                      {discountSuccess && (
+                        <p className="text-[9px] text-success font-semibold mt-1">{discountSuccess}</p>
+                      )}
                     </div>
                   )}
 
@@ -471,6 +580,11 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                       <span className="font-bold text-slate-800 text-xs block">{rec.productName}</span>
                       <span className="text-[10px] text-muted-foreground font-mono mt-1 block">
                         {rec.sku} • {rec.quantity} units
+                        {rec.discountApplied && (
+                          <span className="text-success font-bold ml-1">
+                            ({rec.discountApplied.code})
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="text-right">
@@ -782,6 +896,11 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                       <span className="font-bold text-slate-800 text-[11px] block leading-tight">{rec.productName}</span>
                       <span className="text-[9px] text-muted-foreground font-mono leading-none mt-1 block">
                         {rec.sku} • {rec.quantity} units
+                        {rec.discountApplied && (
+                          <span className="text-success font-bold ml-1">
+                            ({rec.discountApplied.code})
+                          </span>
+                        )}
                       </span>
                     </div>
                     <span className="font-black text-slate-800 font-mono text-xs">{formatNaira(rec.totalAmount)}</span>

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useSession } from '../../application/context/SessionContext';
-import { MOCK_REGIONS, MOCK_BRANCHES } from '../../data/mock/mockData';
+import { MOCK_REGIONS } from '../../data/mock/mockData';
 import { Select, SelectOption } from '../ui/Select';
 import { MapPin, ShieldAlert } from 'lucide-react';
 import { Badge } from '../ui/Badge';
@@ -11,10 +11,10 @@ export const OutletSelector: React.FC = () => {
     selectedRegionId, 
     selectedOutletId, 
     changeSelection,
-    isSyncing 
+    isSyncing,
+    branches
   } = useSession();
   const regions = MOCK_REGIONS;
-  const branches = MOCK_BRANCHES;
 
   // 1. Build Region Dropdown Options depending on User Role
   const regionOptions = useMemo((): SelectOption[] => {

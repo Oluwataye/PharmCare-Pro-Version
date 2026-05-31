@@ -8,11 +8,10 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableEmp
 import { formatNaira } from '../../lib/utils';
 import { Search, Database, AlertTriangle, RotateCw, Plus, Edit2, Trash2, X, AlertOctagon, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { MOCK_BRANCHES } from '../../data/mock/mockData';
 import { InventoryItem } from '../../domain/entities/models';
 
 export const InventoryPanel: React.FC = () => {
-  const { selectedRegionId, selectedOutletId, currentUser } = useSession();
+  const { selectedRegionId, selectedOutletId, currentUser, branches, categories: sessionCategories } = useSession();
   const { 
     inventory, 
     rawInventory, 
@@ -57,22 +56,25 @@ export const InventoryPanel: React.FC = () => {
     rawInventory.forEach(item => {
       if (item.category) list.add(item.category);
     });
+    sessionCategories.forEach(c => {
+      if (c.isActive) list.add(c.name);
+    });
     return ['all', ...Array.from(list)];
-  }, [rawInventory]);
+  }, [rawInventory, sessionCategories]);
 
   // Compute branch options with role security scopes
   const allowedBranches = useMemo(() => {
     if (!currentUser) return [];
     if (currentUser.role === 'SUPER_ADMIN') {
-      return MOCK_BRANCHES;
+      return branches;
     }
     if (currentUser.role === 'REGIONAL_MANAGER') {
       const regionIds = currentUser.assignedRegionIds || [];
-      return MOCK_BRANCHES.filter(b => regionIds.includes(b.regionId));
+      return branches.filter(b => regionIds.includes(b.regionId));
     }
     // ADMIN
-    return MOCK_BRANCHES.filter(b => b.id === currentUser.branchId);
-  }, [currentUser]);
+    return branches.filter(b => b.id === currentUser.branchId);
+  }, [currentUser, branches]);
 
   const branchOptions = useMemo(() => {
     return allowedBranches.map(b => ({
@@ -135,10 +137,10 @@ export const InventoryPanel: React.FC = () => {
   // Actions
   const handleBranchChange = (newBranchId: string) => {
     setFormBranchId(newBranchId);
-    const oldBranchCode = MOCK_BRANCHES.find(b => b.id === formBranchId)?.code || '';
+    const oldBranchCode = branches.find(b => b.id === formBranchId)?.code || '';
     const currentBatchNum = formBatchNumber;
     if (!currentBatchNum || currentBatchNum.startsWith(`BAT-${oldBranchCode}-`)) {
-      const newBranchCode = MOCK_BRANCHES.find(b => b.id === newBranchId)?.code || 'LAG';
+      const newBranchCode = branches.find(b => b.id === newBranchId)?.code || 'LAG';
       setFormBatchNumber(`BAT-${newBranchCode}-${Math.floor(Math.random() * 9000) + 1000}`);
     }
   };
@@ -167,7 +169,7 @@ export const InventoryPanel: React.FC = () => {
     }
     setFormBranchId(defaultBranchId);
     
-    const selectedBranchCode = MOCK_BRANCHES.find(b => b.id === defaultBranchId)?.code || 'LAG';
+    const selectedBranchCode = branches.find(b => b.id === defaultBranchId)?.code || 'LAG';
     setFormBatchNumber(`BAT-${selectedBranchCode}-${Math.floor(Math.random() * 9000) + 1000}`);
     
     const oneYearFromNow = new Date();
@@ -253,7 +255,7 @@ export const InventoryPanel: React.FC = () => {
         branchId: formBranchId,
         batchNumber: formBatchNumber.trim() || undefined,
         expiryDate: formExpiryDate.trim() || undefined,
-        isWarehouseStock: MOCK_BRANCHES.find(b => b.id === formBranchId)?.type === 'warehouse'
+        isWarehouseStock: branches.find(b => b.id === formBranchId)?.type === 'warehouse'
       };
 
       if (editingProduct) {
@@ -453,7 +455,7 @@ export const InventoryPanel: React.FC = () => {
                       <div className="flex flex-col">
                         <span>{item.sku}</span>
                         <span className="text-[10px] text-primary/70 font-semibold uppercase mt-0.5">
-                          {MOCK_BRANCHES.find(b => b.id === item.branchId)?.name || item.branchId}
+                          {branches.find(b => b.id === item.branchId)?.name || item.branchId}
                         </span>
                       </div>
                     </TableCell>
