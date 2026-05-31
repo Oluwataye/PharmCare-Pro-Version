@@ -7,9 +7,12 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Select } from '../ui/Select';
 import { formatNaira } from '../../lib/utils';
+import { MOCK_BRANCHES } from '../../data/mock/mockData';
 import { 
   ShoppingBag, CheckCircle2, AlertCircle, 
-  ShieldAlert, Receipt, Calculator, Scale 
+  Receipt, Calculator, Scale,
+  ArrowLeft, TrendingUp, CreditCard, Coins,
+  ArrowRight, AlertTriangle, ShieldCheck
 } from 'lucide-react';
 
 interface SalesCashPanelProps {
@@ -32,6 +35,7 @@ interface ReconciliationLog {
   id: string;
   date: string;
   branchName: string;
+  branchId: string;
   expectedCash: number;
   actualCash: number;
   discrepancy: number;
@@ -41,19 +45,38 @@ interface ReconciliationLog {
 
 const inventoryRepo = new MockInventoryRepository();
 
+// Pre-populated transactions representing business activity across the branches
+const INITIAL_RECEIPTS: SimulatedReceipt[] = [
+  { id: 'rec-1', productName: 'Ciprofloxacin 500mg', sku: 'MED-CIP-500', quantity: 2, totalAmount: 8400, paymentMethod: 'POS', timestamp: '10:15 AM', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
+  { id: 'rec-2', productName: 'Paracetamol 500mg', sku: 'MED-PCM-500', quantity: 5, totalAmount: 2500, paymentMethod: 'CASH', timestamp: '09:30 AM', branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
+  { id: 'rec-3', productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 3, totalAmount: 10500, paymentMethod: 'TRANSFER', timestamp: '10:45 AM', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
+  { id: 'rec-4', productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 1, totalAmount: 6500, paymentMethod: 'POS', timestamp: '08:15 AM', branchId: 'br-lekki', branchName: 'Lekki Phase 1 Outlet' },
+  { id: 'rec-5', productName: 'Artemether-Lumefantrine (Coartem)', sku: 'MED-COA-024', quantity: 4, totalAmount: 11200, paymentMethod: 'CASH', timestamp: '11:00 AM', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
+  { id: 'rec-6', productName: 'Metformin 500mg', sku: 'MED-MET-500', quantity: 10, totalAmount: 18000, paymentMethod: 'POS', timestamp: '07:50 AM', branchId: 'br-ibadan', branchName: 'Ibadan Main Outlet' },
+  { id: 'rec-7', productName: 'Omeprazole 20mg', sku: 'MED-OME-020', quantity: 2, totalAmount: 2400, paymentMethod: 'TRANSFER', timestamp: '11:15 AM', branchId: 'br-abuja-wuse', branchName: 'Wuse II Premium Outlet' },
+  { id: 'rec-8', productName: 'Atorvastatin 20mg', sku: 'MED-ATO-020', quantity: 2, totalAmount: 13000, paymentMethod: 'POS', timestamp: '09:20 AM', branchId: 'br-kano', branchName: 'Kano Commercial Outlet' },
+  { id: 'rec-9', productName: 'Amoxicillin 500mg', sku: 'MED-AMX-500', quantity: 5, totalAmount: 17500, paymentMethod: 'CASH', timestamp: '10:05 AM', branchId: 'br-enugu', branchName: 'Enugu Urban Outlet' },
+  { id: 'rec-10', productName: 'Ibuprofen 400mg', sku: 'MED-IBU-400', quantity: 8, totalAmount: 6400, paymentMethod: 'POS', timestamp: '08:40 AM', branchId: 'br-port-harcourt', branchName: 'PH GRA Outlet' }
+];
+
+// Pre-populated reconciliations logged on previous business days
+const INITIAL_RECONCILIATIONS: ReconciliationLog[] = [
+  { id: 'recon-1', date: new Date(Date.now() - 86400000).toLocaleDateString(), branchName: 'Ikeja Outlet', branchId: 'br-ikeja', expectedCash: 12500, actualCash: 12500, discrepancy: 0, status: 'balanced', reconciledBy: 'Kemi Balogun' },
+  { id: 'recon-2', date: new Date(Date.now() - 86400000).toLocaleDateString(), branchName: 'Lekki Phase 1 Outlet', branchId: 'br-lekki', expectedCash: 9800, actualCash: 9500, discrepancy: -300, status: 'shortage', reconciledBy: 'Dr. Fatima Umar' },
+  { id: 'recon-3', date: new Date(Date.now() - 86400000).toLocaleDateString(), branchName: 'Ibadan Main Outlet', branchId: 'br-ibadan', expectedCash: 15400, actualCash: 15500, discrepancy: 100, status: 'overage', reconciledBy: 'Ngozi Okoro' },
+  { id: 'recon-4', date: new Date(Date.now() - 172800000).toLocaleDateString(), branchName: 'Wuse II Premium Outlet', branchId: 'br-abuja-wuse', expectedCash: 21000, actualCash: 21000, discrepancy: 0, status: 'balanced', reconciledBy: 'Fatima Ibrahim' }
+];
+
 export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutated }) => {
-  const { selectedOutletId, currentUser } = useSession();
-  const { inventory, refetch } = useInventoryUseCase();
+  const { selectedRegionId, selectedOutletId, currentUser } = useSession();
+  const { rawInventory, refetch } = useInventoryUseCase();
 
-  // Simulated internal local ledgers
-  const [receipts, setReceipts] = useState<SimulatedReceipt[]>([
-    { id: 'rec-1', productName: 'Ciprofloxacin 500mg', sku: 'MED-CIP-500', quantity: 2, totalAmount: 8400, paymentMethod: 'POS', timestamp: new Date(Date.now() - 3600000).toLocaleTimeString(), branchId: 'br-ikeja', branchName: 'Ikeja Outlet' },
-    { id: 'rec-2', productName: 'Paracetamol 500mg', sku: 'MED-PCM-500', quantity: 5, totalAmount: 2500, paymentMethod: 'CASH', timestamp: new Date(Date.now() - 7200000).toLocaleTimeString(), branchId: 'br-ikeja', branchName: 'Ikeja Outlet' }
-  ]);
+  // Simulated internal ledgers
+  const [receipts, setReceipts] = useState<SimulatedReceipt[]>(INITIAL_RECEIPTS);
+  const [reconciliations, setReconciliations] = useState<ReconciliationLog[]>(INITIAL_RECONCILIATIONS);
 
-  const [reconciliations, setReconciliations] = useState<ReconciliationLog[]>([
-    { id: 'recon-1', date: new Date(Date.now() - 86400000).toLocaleDateString(), branchName: 'Ikeja Outlet', expectedCash: 12500, actualCash: 12500, discrepancy: 0, status: 'balanced', reconciledBy: 'Kemi Balogun' }
-  ]);
+  // Simulation scope override (allows manager to operate any branch register)
+  const [simulatedBranchId, setSimulatedBranchId] = useState<string | null>(null);
 
   // Form states - Register Sale
   const [selectedSku, setSelectedSku] = useState('');
@@ -67,38 +90,121 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   const [actualCashInput, setActualCashInput] = useState('');
   const [reconSuccess, setReconSuccess] = useState('');
 
-  // Lock sales input if looking at consolidated view or centralized warehouse
-  const isBranchScopeLocked = selectedOutletId === 'all';
-  const branchName = useMemo(() => {
-    if (isBranchScopeLocked) return '';
-    return inventory[0]?.branchId ? inventory[0].branchId.replace('br-', '').toUpperCase() + ' Branch' : 'Active Outlet';
-  }, [inventory, isBranchScopeLocked]);
+  // Determine active branch scope
+  const activeBranchId = useMemo(() => {
+    if (selectedOutletId !== 'all') {
+      return selectedOutletId;
+    }
+    return simulatedBranchId || '';
+  }, [selectedOutletId, simulatedBranchId]);
 
-  // Products available in current branch with stock > 0
-  const availableProducts = useMemo(() => {
-    return inventory.filter(item => item.quantity > 0);
-  }, [inventory]);
+  const isSimulating = useMemo(() => {
+    return selectedOutletId === 'all' && simulatedBranchId !== null;
+  }, [selectedOutletId, simulatedBranchId]);
+
+  const activeBranchName = useMemo(() => {
+    if (!activeBranchId) return '';
+    return MOCK_BRANCHES.find(b => b.id === activeBranchId)?.name || 'Active Outlet';
+  }, [activeBranchId]);
+
+  // Scoped list of branches governed by logged-in role
+  const visibleBranches = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'SUPER_ADMIN') {
+      return MOCK_BRANCHES.filter(b => b.type === 'retail');
+    }
+    if (currentUser.role === 'REGIONAL_MANAGER') {
+      const regionIds = currentUser.assignedRegionIds || [];
+      return MOCK_BRANCHES.filter(b => b.type === 'retail' && regionIds.includes(b.regionId));
+    }
+    // Branch Admin, Pharmacist, Dispenser see only their branch
+    return MOCK_BRANCHES.filter(b => b.id === currentUser.branchId);
+  }, [currentUser]);
+
+  // Compute products matching simulated or scoped branch
+  const branchProducts = useMemo(() => {
+    if (!activeBranchId) return [];
+    return rawInventory.filter(item => item.branchId === activeBranchId && item.quantity > 0);
+  }, [rawInventory, activeBranchId]);
 
   const activeProduct = useMemo(() => {
-    return availableProducts.find(p => p.sku === selectedSku);
-  }, [availableProducts, selectedSku]);
+    return branchProducts.find(p => p.sku === selectedSku);
+  }, [branchProducts, selectedSku]);
 
-  // Calculate totals
+  // Calculate receipt totals
   const totalSaleAmount = useMemo(() => {
     if (!activeProduct) return 0;
     return activeProduct.price * saleQty;
   }, [activeProduct, saleQty]);
 
-  // Calculate expected cash sales for current branch session
+  // Filtered receipts & reconciliations based on scope
+  const scopedReceipts = useMemo(() => {
+    if (selectedOutletId !== 'all') {
+      return receipts.filter(r => r.branchId === selectedOutletId);
+    }
+    if (selectedRegionId !== 'all') {
+      const branchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      return receipts.filter(r => branchIds.includes(r.branchId));
+    }
+    return receipts;
+  }, [receipts, selectedRegionId, selectedOutletId]);
+
+  const scopedReconciliations = useMemo(() => {
+    if (selectedOutletId !== 'all') {
+      return reconciliations.filter(r => r.branchId === selectedOutletId);
+    }
+    if (selectedRegionId !== 'all') {
+      const branchIds = MOCK_BRANCHES.filter(b => b.regionId === selectedRegionId).map(b => b.id);
+      return reconciliations.filter(r => branchIds.includes(r.branchId));
+    }
+    return reconciliations;
+  }, [reconciliations, selectedRegionId, selectedOutletId]);
+
+  // Compute Expected Cash Sales for the active checkout branch session
   const expectedCashSales = useMemo(() => {
+    if (!activeBranchId) return 0;
     return receipts
-      .filter(r => r.branchId === selectedOutletId && r.paymentMethod === 'CASH')
+      .filter(r => r.branchId === activeBranchId && r.paymentMethod === 'CASH')
       .reduce((sum, r) => sum + r.totalAmount, 0);
-  }, [receipts, selectedOutletId]);
+  }, [receipts, activeBranchId]);
+
+  // Consolidated command stats
+  const consolidatedStats = useMemo(() => {
+    const list = scopedReceipts;
+    const total = list.reduce((sum, r) => sum + r.totalAmount, 0);
+    const cash = list.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + r.totalAmount, 0);
+    const pos = list.filter(r => r.paymentMethod === 'POS').reduce((sum, r) => sum + r.totalAmount, 0);
+    const transfer = list.filter(r => r.paymentMethod === 'TRANSFER').reduce((sum, r) => sum + r.totalAmount, 0);
+    const warnings = scopedReconciliations.filter(r => r.status !== 'balanced').length;
+
+    return { total, cash, pos, transfer, warnings };
+  }, [scopedReceipts, scopedReconciliations]);
+
+  // Terminal stats table row calculations
+  const terminalAuditRows = useMemo(() => {
+    return visibleBranches.map(branch => {
+      const branchReceipts = receipts.filter(r => r.branchId === branch.id);
+      const totalSales = branchReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
+      
+      const paymentSplit = branchReceipts.reduce((acc, r) => {
+        acc[r.paymentMethod] += r.totalAmount;
+        return acc;
+      }, { CASH: 0, POS: 0, TRANSFER: 0 });
+
+      const latestRecon = reconciliations.find(r => r.branchId === branch.id);
+
+      return {
+        branch,
+        totalSales,
+        paymentSplit,
+        latestRecon
+      };
+    });
+  }, [visibleBranches, receipts, reconciliations]);
 
   const handleRegisterSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProduct || isBranchScopeLocked) return;
+    if (!activeProduct || !activeBranchId) return;
 
     if (saleQty > activeProduct.quantity) {
       setSaleError(`Insufficient stock. Maximum available is ${activeProduct.quantity} units.`);
@@ -111,7 +217,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
     try {
       // 1. Decrement Stock level in inventory DB (Mock repository updates shared array)
-      await inventoryRepo.updateStock(selectedOutletId, activeProduct.sku, -saleQty);
+      await inventoryRepo.updateStock(activeBranchId, activeProduct.sku, -saleQty);
 
       // 2. Add receipt log
       const newReceipt: SimulatedReceipt = {
@@ -121,9 +227,9 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
         quantity: saleQty,
         totalAmount: totalSaleAmount,
         paymentMethod,
-        timestamp: new Date().toLocaleTimeString(),
-        branchId: selectedOutletId,
-        branchName: activeProduct.batchNumber || 'Local Branch'
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        branchId: activeBranchId,
+        branchName: activeBranchName
       };
 
       setReceipts(prev => [newReceipt, ...prev]);
@@ -146,7 +252,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
   const handleReconcile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isBranchScopeLocked || !actualCashInput) return;
+    if (!activeBranchId || !actualCashInput) return;
 
     const actual = parseFloat(actualCashInput);
     const discrepancy = actual - expectedCashSales;
@@ -158,7 +264,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     const newRecon: ReconciliationLog = {
       id: `recon-new-${Date.now()}`,
       date: new Date().toLocaleDateString(),
-      branchName: branchName || 'Active Branch',
+      branchName: activeBranchName,
+      branchId: activeBranchId,
       expectedCash: expectedCashSales,
       actualCash: actual,
       discrepancy,
@@ -173,27 +280,55 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     setTimeout(() => setReconSuccess(''), 3000);
   };
 
-  return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      
-      {/* Title */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-black text-slate-800 uppercase tracking-wider">
-          Sales Registration & Drawer Reconciliation
-        </h2>
-        <p className="text-xxs text-muted-foreground uppercase tracking-widest leading-normal">
-          Process point-of-sale customer checkouts and reconcile cash drawer balances.
-        </p>
-      </div>
+  const handleStartSimulation = (branchId: string) => {
+    setSimulatedBranchId(branchId);
+    setSelectedSku('');
+    setSaleQty(1);
+    setSaleError('');
+    setSaleSuccess('');
+  };
 
-      {isBranchScopeLocked ? (
-        <div className="flex items-center gap-3 p-5 rounded-2xl border border-destructive/20 bg-destructive/5 text-xxs text-destructive leading-normal font-medium max-w-2xl">
-          <ShieldAlert className="h-5 w-5 shrink-0 text-destructive" />
-          <div>
-            <span className="font-bold uppercase tracking-wider">Checkout Terminal Locked:</span> You are currently viewing Consolidated Enterprise scope. Sales registration and cash reconciliation logs require a specific **Retail Outlet** selection. Select a branch from the location scope selector to unlock.
+  // ----------------------------------------------------
+  // RENDER CONFIG: Dual-mode presentation layout
+  // ----------------------------------------------------
+
+  // View A: Retail Checkout Terminal (either locked to branch, or simulated override active)
+  if (activeBranchId) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-200">
+        
+        {/* Header Action Bar */}
+        <div className="flex items-center justify-between gap-4 flex-wrap pb-3 border-b border-border/40">
+          <div className="flex items-center gap-3">
+            {isSimulating && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSimulatedBranchId(null)}
+                className="h-8 text-xxs uppercase tracking-wider gap-1.5 bg-card border-border hover:bg-slate-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to Command Console
+              </Button>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-slate-800 uppercase tracking-wider">
+                  POS Checkout Terminal
+                </h2>
+                {isSimulating ? (
+                  <Badge variant="info" className="uppercase font-mono text-[8px] tracking-widest scale-95">Simulation Active</Badge>
+                ) : (
+                  <Badge variant="success" className="uppercase font-mono text-[8px] tracking-widest scale-95">Operator Mode</Badge>
+                )}
+              </div>
+              <p className="text-xxs text-muted-foreground uppercase tracking-widest leading-normal mt-0.5">
+                Register customer purchases and log cash balances for **{activeBranchName}**.
+              </p>
+            </div>
           </div>
         </div>
-      ) : (
+
         <div className="grid gap-6 lg:grid-cols-3">
           
           {/* Column 1: Register Sale Form */}
@@ -207,7 +342,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                   </CardTitle>
                 </div>
                 <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
-                  Terminal: {branchName}
+                  Scope: {activeBranchName} Terminal
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-5">
@@ -223,9 +358,9 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                       onChange={setSelectedSku}
                       options={[
                         { value: '', label: '-- Choose Product --' },
-                        ...availableProducts.map(p => ({
+                        ...branchProducts.map(p => ({
                           value: p.sku,
-                          label: `${p.name} (${p.quantity} left) - ${formatNaira(p.price)}`
+                          label: `${p.name} (${p.quantity} units left) - ${formatNaira(p.price)}`
                         }))
                       ]}
                       ariaLabel="Select medicine to sell"
@@ -234,7 +369,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
                   {/* Quantity and Price Preview */}
                   {activeProduct && (
-                    <div className="p-3 rounded-xl border border-border bg-slate-50/50 grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-xl border border-border bg-slate-50/55 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-150">
                       <div>
                         <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                           Checkout Quantity
@@ -245,7 +380,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                           max={activeProduct.quantity}
                           value={saleQty}
                           onChange={(e) => setSaleQty(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono font-bold"
+                          className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
                           required
                         />
                       </div>
@@ -253,7 +388,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                         <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">
                           Receipt Total
                         </span>
-                        <span className="text-sm font-black text-primary font-mono">
+                        <span className="text-sm font-black text-primary font-mono mt-0.5">
                           {formatNaira(totalSaleAmount)}
                         </span>
                       </div>
@@ -271,10 +406,10 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                           key={method}
                           type="button"
                           onClick={() => setPaymentMethod(method)}
-                          className={`py-2 rounded-lg text-xxs font-bold tracking-wider uppercase border transition duration-200 ${
+                          className={`py-2 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition duration-150 ${
                             paymentMethod === method
                               ? 'bg-primary/5 border-primary text-primary'
-                              : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                              : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-slate-50'
                           }`}
                         >
                           {method}
@@ -319,37 +454,37 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4.5 w-4.5 text-primary" />
                   <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
-                    Simulated Receipt Ledger
+                    Receipt Ledger
                   </CardTitle>
                 </div>
                 <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
-                  Receipt logs for selected branch
+                  Checkout records for {activeBranchName}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0 overflow-y-auto max-h-[360px] custom-scrollbar flex-1">
-                {receipts.filter(r => r.branchId === selectedOutletId).map((rec) => (
+              <CardContent className="p-0 overflow-y-auto max-h-[380px] custom-scrollbar flex-1">
+                {receipts.filter(r => r.branchId === activeBranchId).map((rec) => (
                   <div 
                     key={rec.id}
-                    className="p-3 border-b border-border/50 flex items-center justify-between gap-3 text-xxs bg-slate-50/20 hover:bg-slate-50/50 transition duration-150"
+                    className="p-3.5 border-b border-border/50 flex items-center justify-between gap-3 text-xxs bg-slate-50/10 hover:bg-slate-50/30 transition duration-150"
                   >
                     <div>
                       <span className="font-bold text-slate-800 text-xs block">{rec.productName}</span>
-                      <span className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                        {rec.sku} • {rec.quantity} pcs
+                      <span className="text-[10px] text-muted-foreground font-mono mt-1 block">
+                        {rec.sku} • {rec.quantity} units
                       </span>
                     </div>
                     <div className="text-right">
                       <span className="font-black text-slate-800 font-mono block">{formatNaira(rec.totalAmount)}</span>
-                      <Badge variant="outline" className="text-[7.5px] uppercase font-mono tracking-wider scale-90 mt-1 py-0 px-1 select-none">
+                      <Badge variant="outline" className="text-[7.5px] uppercase font-mono tracking-wider scale-90 mt-1.5 py-0 px-1 select-none">
                         {rec.paymentMethod}
                       </Badge>
                     </div>
                   </div>
                 ))}
                 
-                {receipts.filter(r => r.branchId === selectedOutletId).length === 0 && (
+                {receipts.filter(r => r.branchId === activeBranchId).length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-1">
-                    <ShoppingBag className="h-8 w-8 text-muted-foreground/30" />
+                    <ShoppingBag className="h-8 w-8 text-muted-foreground/20" />
                     <p className="text-xs font-bold text-muted-foreground uppercase mt-2">No transaction receipts</p>
                     <p className="text-[10px] text-muted-foreground">Register sales above to populate receipts.</p>
                   </div>
@@ -397,7 +532,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                       value={actualCashInput}
                       onChange={(e) => setActualCashInput(e.target.value)}
                       placeholder="e.g. 12500"
-                      className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary font-mono font-bold"
+                      className="h-9 w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
                       required
                     />
                   </div>
@@ -431,10 +566,10 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                 </div>
               </CardHeader>
               <CardContent className="p-0 overflow-y-auto max-h-[160px] custom-scrollbar">
-                {reconciliations.map((recon) => (
+                {reconciliations.filter(r => r.branchId === activeBranchId).map((recon) => (
                   <div 
                     key={recon.id}
-                    className="p-3 border-b border-border/50 text-[10px] space-y-1.5 bg-slate-50/10 hover:bg-slate-50/30 transition duration-150"
+                    className="p-3.5 border-b border-border/50 text-[10px] space-y-1.5 bg-slate-50/10 hover:bg-slate-50/30 transition duration-150"
                   >
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-slate-800 font-mono">{recon.date}</span>
@@ -465,7 +600,255 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           </div>
 
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // View B: Consolidated Operations Command (Management view)
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      
+      {/* Title */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-base font-black text-slate-800 uppercase tracking-wider">
+          Sales Operations Command Console
+        </h2>
+        <p className="text-xxs text-muted-foreground uppercase tracking-widest leading-normal">
+          Enterprise operational oversight, drawer auditing registers, and simulated terminal monitors.
+        </p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        
+        {/* Total Sales Card */}
+        <Card className="border border-border bg-card p-4 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <span className="block text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">Consolidated Sales</span>
+            <span className="text-base font-black text-slate-800 font-mono mt-0.5 block">
+              {formatNaira(consolidatedStats.total)}
+            </span>
+          </div>
+        </Card>
+
+        {/* Expected Cash Drawer Sales */}
+        <Card className="border border-border bg-card p-4 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-success/5 flex items-center justify-center shrink-0">
+            <Coins className="h-5 w-5 text-success" />
+          </div>
+          <div>
+            <span className="block text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">Expected Cash Sales</span>
+            <span className="text-base font-black text-slate-800 font-mono mt-0.5 block">
+              {formatNaira(consolidatedStats.cash)}
+            </span>
+          </div>
+        </Card>
+
+        {/* POS Terminals Expected */}
+        <Card className="border border-border bg-card p-4 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-info/5 flex items-center justify-center shrink-0">
+            <CreditCard className="h-5 w-5 text-info" />
+          </div>
+          <div>
+            <span className="block text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">POS Terminal Sales</span>
+            <span className="text-base font-black text-slate-800 font-mono mt-0.5 block">
+              {formatNaira(consolidatedStats.pos)}
+            </span>
+          </div>
+        </Card>
+
+        {/* Discrepancy Warnings */}
+        <Card className="border border-border bg-card p-4 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-warning/5 flex items-center justify-center shrink-0">
+            <AlertTriangle className={`h-5 w-5 ${consolidatedStats.warnings > 0 ? 'text-warning animate-bounce' : 'text-slate-400'}`} />
+          </div>
+          <div>
+            <span className="block text-[9px] text-muted-foreground uppercase font-extrabold tracking-wider">Discrepancy Flags</span>
+            <span className="text-base font-black text-slate-800 font-mono mt-0.5 block">
+              {consolidatedStats.warnings} Warnings
+            </span>
+          </div>
+        </Card>
+
+      </div>
+
+      {/* Main auditing table & grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        
+        {/* Terminal status overview */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border border-border bg-card shadow-sm">
+            <CardHeader className="pb-3 border-b border-border/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  Retail Terminal Status & Audits
+                </CardTitle>
+                <CardDescription className="text-xxs uppercase tracking-widest text-muted-foreground mt-0.5">
+                  Expected receipts vs reconciliation results across scope
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left text-xxs border-collapse">
+                <thead>
+                  <tr className="border-b border-border/40 bg-muted/30 uppercase tracking-wider text-muted-foreground font-bold font-mono">
+                    <th className="p-3">Branch Location</th>
+                    <th className="p-3 text-right">Total Sales</th>
+                    <th className="p-3 text-right">Cash / POS</th>
+                    <th className="p-3">Reconciliation Status</th>
+                    <th className="p-3 text-right">Simulation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {terminalAuditRows.map(({ branch, totalSales, paymentSplit, latestRecon }) => {
+                    let reconBadge = <Badge variant="outline" className="text-slate-400 uppercase font-mono text-[7px] py-0 px-1 select-none">No Recon Today</Badge>;
+                    
+                    if (latestRecon) {
+                      if (latestRecon.status === 'balanced') {
+                        reconBadge = <Badge variant="success" className="uppercase font-mono text-[7px] py-0 px-1 select-none flex gap-0.5 items-center w-fit"><ShieldCheck className="h-2.5 w-2.5 shrink-0" /> Balanced</Badge>;
+                      } else if (latestRecon.status === 'shortage') {
+                        reconBadge = <Badge variant="destructive" className="uppercase font-mono text-[7px] py-0 px-1 select-none flex gap-0.5 items-center w-fit"><AlertCircle className="h-2.5 w-2.5 shrink-0" /> Shortage (₦{Math.abs(latestRecon.discrepancy)})</Badge>;
+                      } else {
+                        reconBadge = <Badge variant="warning" className="uppercase font-mono text-[7px] py-0 px-1 select-none flex gap-0.5 items-center w-fit"><AlertTriangle className="h-2.5 w-2.5 shrink-0" /> Overage (+₦{latestRecon.discrepancy})</Badge>;
+                      }
+                    }
+
+                    return (
+                      <tr key={branch.id} className="border-b border-border/30 hover:bg-slate-50/50 transition">
+                        <td className="p-3 font-semibold text-slate-800">
+                          <span className="text-xs font-bold block">{branch.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{branch.code} • {branch.location}</span>
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-800">
+                          {formatNaira(totalSales)}
+                        </td>
+                        <td className="p-3 text-right text-muted-foreground font-mono">
+                          <div>CASH: {formatNaira(paymentSplit.CASH)}</div>
+                          <div className="mt-0.5">POS: {formatNaira(paymentSplit.POS)}</div>
+                        </td>
+                        <td className="p-3">
+                          {reconBadge}
+                          {latestRecon && (
+                            <div className="text-[9px] text-muted-foreground font-mono mt-1 uppercase">By: {latestRecon.reconciledBy.split(' ')[0]}</div>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleStartSimulation(branch.id)}
+                            className="h-7 text-xxs text-primary hover:bg-primary/5 gap-1 inline-flex items-center uppercase tracking-wider font-semibold"
+                          >
+                            Operate Register
+                            <ArrowRight className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Consolidated transaction receipts */}
+        <div className="lg:col-span-1 space-y-6">
+          
+          {/* Recent Receipts Audit feed */}
+          <Card className="border border-border bg-card shadow-sm flex flex-col">
+            <CardHeader className="border-b border-border/20 py-3.5 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-4.5 w-4.5 text-primary" />
+                <CardTitle className="text-xxs font-black uppercase tracking-wider text-foreground">
+                  Scoped Receipts Feed
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5 uppercase font-mono text-[7px] py-0 px-1 select-none font-semibold">
+                {scopedReceipts.length} Logs
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0 overflow-y-auto max-h-[300px] custom-scrollbar">
+              {scopedReceipts.map((rec) => (
+                <div 
+                  key={rec.id}
+                  className="p-3.5 border-b border-border/40 text-[10px] space-y-1.5 hover:bg-slate-50/30 transition duration-150 bg-slate-50/10"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <span className="font-bold text-slate-800 text-[11px] block leading-tight">{rec.productName}</span>
+                      <span className="text-[9px] text-muted-foreground font-mono leading-none mt-1 block">
+                        {rec.sku} • {rec.quantity} units
+                      </span>
+                    </div>
+                    <span className="font-black text-slate-800 font-mono text-xs">{formatNaira(rec.totalAmount)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] text-muted-foreground uppercase font-bold tracking-wider pt-0.5">
+                    <span className="text-primary/80 font-mono">{rec.branchName}</span>
+                    <Badge variant="outline" className="text-[7px] py-0 px-1 font-mono">{rec.paymentMethod}</Badge>
+                  </div>
+                </div>
+              ))}
+              {scopedReceipts.length === 0 && (
+                <div className="p-8 text-center text-muted-foreground">No recent receipts recorded.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Consolidated Daily Reconciliations feed */}
+          <Card className="border border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border/20 py-3.5">
+              <div className="flex items-center gap-2">
+                <Scale className="h-4.5 w-4.5 text-primary" />
+                <CardTitle className="text-xxs font-black uppercase tracking-wider text-foreground">
+                  Drawer Reconcile Logs
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-y-auto max-h-[220px] custom-scrollbar">
+              {scopedReconciliations.map((recon) => (
+                <div 
+                  key={recon.id}
+                  className="p-3.5 border-b border-border/50 text-[10px] space-y-1 bg-slate-50/10 hover:bg-slate-50/30 transition duration-150"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-800 font-mono">{recon.date}</span>
+                    <Badge 
+                      variant={
+                        recon.status === 'balanced' ? 'success' : 
+                        recon.status === 'shortage' ? 'destructive' : 'warning'
+                      }
+                      className="text-[7px] tracking-wider py-0 px-1 select-none font-mono uppercase"
+                    >
+                      {recon.status}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground font-mono text-[9px] mt-1 leading-normal">
+                    <span>Expected: {formatNaira(recon.expectedCash)}</span>
+                    <span>Actual: {formatNaira(recon.actualCash)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] uppercase tracking-wider mt-1">
+                    <span className="font-bold text-slate-600">{recon.branchName}</span>
+                    {recon.discrepancy !== 0 && (
+                      <span className={`font-bold ${recon.discrepancy < 0 ? 'text-destructive' : 'text-warning'}`}>
+                        {recon.discrepancy < 0 ? '-' : '+'}{formatNaira(Math.abs(recon.discrepancy))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {scopedReconciliations.length === 0 && (
+                <div className="p-8 text-center text-muted-foreground">No drawer reconciliations recorded.</div>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
+
+      </div>
 
     </div>
   );
