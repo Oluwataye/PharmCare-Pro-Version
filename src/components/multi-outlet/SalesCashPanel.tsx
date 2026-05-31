@@ -15,7 +15,10 @@ import {
   Plus, Minus, Trash2
 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
-import { getCartSession, setCartSession, clearCartSession } from '../../lib/indexedDb';
+import { 
+  getCartSession, setCartSession, clearCartSession,
+  getAllDrafts, saveDraft, deleteDraft 
+} from '../../lib/indexedDb';
 
 interface SalesCashPanelProps {
   onInventoryMutated?: () => void;
@@ -43,6 +46,33 @@ interface SimulatedReceipt {
     discountAmount: number;
   };
   originalAmount?: number;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  prescriptionId?: string;
+  doctorName?: string;
+  dosageInstructions?: string;
+  billingNotes?: string;
+}
+
+interface TransactionDraft {
+  id: string;
+  branchId: string;
+  branchName: string;
+  operatorId: string;
+  operatorName: string;
+  cartItems: CartItem[];
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  prescriptionId: string;
+  doctorName: string;
+  dosageInstructions: string;
+  billingNotes: string;
+  discountCode: string;
+  appliedDiscount: Discount | null;
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  timestamp: string;
 }
 
 interface ReconciliationLog {
@@ -125,6 +155,21 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   // Form states - Reconciliation
   const [actualCashInput, setActualCashInput] = useState('');
   const [reconSuccess, setReconSuccess] = useState('');
+
+  // Customer & Prescription Metadata states
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [prescriptionId, setPrescriptionId] = useState('');
+  const [doctorName, setDoctorName] = useState('');
+  const [dosageInstructions, setDosageInstructions] = useState('');
+  const [billingNotes, setBillingNotes] = useState('');
+  
+  // Track loaded draft
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
+
+  // Drafts list state
+  const [drafts, setDrafts] = useState<TransactionDraft[]>([]);
 
   // Determine active branch scope
   const activeBranchId = useMemo(() => {
@@ -213,6 +258,126 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
 
     saveCart();
   }, [cartItems, storageKey]);
+
+  // Fetch drafts from IndexedDB
+  const loadDrafts = React.useCallback(async () => {
+    try {
+      const allDraftsList = await getAllDrafts<TransactionDraft>();
+      // Filter drafts to active branch ID
+      const filtered = allDraftsList
+        .map(d => d.value)
+        .filter(d => d.branchId === activeBranchId);
+      setDrafts(filtered);
+    } catch (e) {
+      console.error('Failed to load transaction drafts:', e);
+    }
+  }, [activeBranchId]);
+
+  // Load drafts on mount or when branch changes
+  React.useEffect(() => {
+    if (activeBranchId) {
+      loadDrafts();
+    } else {
+      setDrafts([]);
+    }
+  }, [activeBranchId, loadDrafts]);
+
+  const handleSaveDraft = async () => {
+    if (!activeBranchId) return;
+    if (cartItems.length === 0) {
+      setSaleError('Cannot save draft. Cart is empty.');
+      return;
+    }
+
+    try {
+      const draftId = loadedDraftId || `draft-${Date.now()}`;
+      const newDraft: TransactionDraft = {
+        id: draftId,
+        branchId: activeBranchId,
+        branchName: activeBranchName,
+        operatorId: currentUser?.id || 'anonymous',
+        operatorName: currentUser?.name || 'Anonymous Operator',
+        cartItems,
+        customerName,
+        customerPhone,
+        customerEmail,
+        prescriptionId,
+        doctorName,
+        dosageInstructions,
+        billingNotes,
+        discountCode,
+        appliedDiscount,
+        paymentMethod,
+        timestamp: new Date().toISOString()
+      };
+
+      await saveDraft(draftId, newDraft);
+      setSaleSuccess(loadedDraftId ? 'Transaction draft updated successfully!' : 'Transaction draft saved to IndexedDB!');
+      
+      // Reset form
+      setCartItems([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setPrescriptionId('');
+      setDoctorName('');
+      setDosageInstructions('');
+      setBillingNotes('');
+      setDiscountCode('');
+      setAppliedDiscount(null);
+      setDiscountSuccess('');
+      setDiscountError('');
+      setLoadedDraftId(null);
+
+      // Refresh drafts list
+      await loadDrafts();
+      
+      setTimeout(() => setSaleSuccess(''), 3000);
+    } catch (e) {
+      setSaleError('Failed to save draft to IndexedDB.');
+      console.error(e);
+    }
+  };
+
+  const handleLoadDraft = (draft: TransactionDraft) => {
+    setCartItems(draft.cartItems);
+    setCustomerName(draft.customerName || '');
+    setCustomerPhone(draft.customerPhone || '');
+    setCustomerEmail(draft.customerEmail || '');
+    setPrescriptionId(draft.prescriptionId || '');
+    setDoctorName(draft.doctorName || '');
+    setDosageInstructions(draft.dosageInstructions || '');
+    setBillingNotes(draft.billingNotes || '');
+    setDiscountCode(draft.discountCode || '');
+    setAppliedDiscount(draft.appliedDiscount || null);
+    setPaymentMethod(draft.paymentMethod || 'CASH');
+    setLoadedDraftId(draft.id);
+    setSaleError('');
+    setSaleSuccess(`Loaded draft for "${draft.customerName || 'Walk-in Customer'}"`);
+    
+    if (draft.appliedDiscount) {
+      setDiscountSuccess(`Discount "${draft.appliedDiscount.code}" applied from draft!`);
+    } else {
+      setDiscountSuccess('');
+    }
+
+    setTimeout(() => setSaleSuccess(''), 3000);
+  };
+
+  const handleDeleteDraft = async (id: string) => {
+    try {
+      await deleteDraft(id);
+      if (loadedDraftId === id) {
+        setLoadedDraftId(null);
+      }
+      setSaleSuccess('Draft deleted.');
+      await loadDrafts();
+      setTimeout(() => setSaleSuccess(''), 2000);
+    } catch (e) {
+      setSaleError('Failed to delete draft.');
+      console.error(e);
+    }
+  };
 
   // Scoped list of branches governed by logged-in role
   const visibleBranches = useMemo(() => {
@@ -445,12 +610,26 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           value: appliedDiscount.value,
           discountAmount: subtotal - discountedSaleAmount
         } : undefined,
-        originalAmount: subtotal
+        originalAmount: subtotal,
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
+        prescriptionId: prescriptionId.trim() || undefined,
+        doctorName: doctorName.trim() || undefined,
+        dosageInstructions: dosageInstructions.trim() || undefined,
+        billingNotes: billingNotes.trim() || undefined
       };
 
       setReceipts(prev => [newReceipt, ...prev]);
       setSaleSuccess(`Cart checkout of ${cartItems.length} items completed successfully!`);
       
+      // Delete draft from IndexedDB if we loaded one
+      if (loadedDraftId) {
+        await deleteDraft(loadedDraftId);
+        setLoadedDraftId(null);
+        await loadDrafts();
+      }
+
       // Auto-open print receipt modal
       setSelectedReceiptForModal(newReceipt);
       setIsReceiptModalOpen(true);
@@ -463,6 +642,13 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       setAppliedDiscount(null);
       setDiscountError('');
       setDiscountSuccess('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setPrescriptionId('');
+      setDoctorName('');
+      setDosageInstructions('');
+      setBillingNotes('');
 
       // 3. Trigger inventory re-fetch
       await refetch();
@@ -768,6 +954,127 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
               </CardContent>
             </Card>
 
+            {/* Customer & Prescription Metadata (Optional) */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/20">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Customer & Prescription Metadata (Optional)
+                </CardTitle>
+                <CardDescription className="text-[10px] text-muted-foreground mt-0.5">
+                  Capture customer profile and dosage instructions for compliance and audits.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-5 pb-5 pt-3 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left Column: Customer Info */}
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-primary border-b border-border/50 pb-1">
+                      Customer Profile
+                    </h4>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                          Customer Name
+                        </label>
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="e.g. Tunde Bakare"
+                          className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                          Phone Number
+                        </label>
+                        <input
+                          type="text"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="e.g. 08031234567"
+                          className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          placeholder="e.g. customer@example.com"
+                          className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Prescription details */}
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-primary border-b border-border/50 pb-1">
+                      Prescription Details
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                            Prescription ID
+                          </label>
+                          <input
+                            type="text"
+                            value={prescriptionId}
+                            onChange={(e) => setPrescriptionId(e.target.value)}
+                            placeholder="e.g. RX-9921"
+                            className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                            Doctor Name
+                          </label>
+                          <input
+                            type="text"
+                            value={doctorName}
+                            onChange={(e) => setDoctorName(e.target.value)}
+                            placeholder="e.g. Dr. Lola Adebayo"
+                            className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                          Dosage Instructions
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={dosageInstructions}
+                          onChange={(e) => setDosageInstructions(e.target.value)}
+                          placeholder="e.g. 1 tablet daily after meals..."
+                          className="w-full rounded-lg border border-border bg-card p-2 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none font-sans"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billing / Special Notes */}
+                <div className="pt-3 border-t border-border/40">
+                  <label className="block text-[9px] font-semibold text-muted-foreground mb-1 uppercase">
+                    Billing Notes & Special Instructions
+                  </label>
+                  <textarea
+                    rows={1}
+                    value={billingNotes}
+                    onChange={(e) => setBillingNotes(e.target.value)}
+                    placeholder="e.g. Deliver to patient's address / corporate sponsorship details..."
+                    className="w-full rounded-lg border border-border bg-card p-2 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none font-sans"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
           </div>
 
           {/* Column 3: Summary, Coupons, and Recent Receipts */}
@@ -867,18 +1174,134 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                   </div>
                 )}
 
-                {/* Checkout Submit */}
-                <form onSubmit={handleRegisterSale}>
+                {/* Checkout Submit & Save Draft */}
+                <div className="space-y-2 pt-1">
+                  <form onSubmit={handleRegisterSale}>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={isSubmittingSale || cartItems.length === 0}
+                      className="w-full h-10 text-xs font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-100 border-none"
+                    >
+                      {isSubmittingSale ? 'Processing...' : 'Checkout & Print Receipt'}
+                    </Button>
+                  </form>
                   <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={isSubmittingSale || cartItems.length === 0}
-                    className="w-full h-10 text-xs font-bold uppercase tracking-wider"
+                    type="button"
+                    variant="outline"
+                    disabled={cartItems.length === 0}
+                    onClick={handleSaveDraft}
+                    className="w-full h-8 text-[10px] font-bold uppercase tracking-wider border-dashed border-primary/40 hover:bg-primary/5 text-primary"
                   >
-                    {isSubmittingSale ? 'Processing...' : 'Checkout & Print Receipt'}
+                    {loadedDraftId ? 'Update Saved Draft' : 'Save As Transaction Draft'}
                   </Button>
-                </form>
+                  {loadedDraftId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setCartItems([]);
+                        setCustomerName('');
+                        setCustomerPhone('');
+                        setCustomerEmail('');
+                        setPrescriptionId('');
+                        setDoctorName('');
+                        setDosageInstructions('');
+                        setBillingNotes('');
+                        setDiscountCode('');
+                        setAppliedDiscount(null);
+                        setLoadedDraftId(null);
+                        setSaleSuccess('Draft editing cancelled. Cart reset.');
+                        setTimeout(() => setSaleSuccess(''), 2000);
+                      }}
+                      className="w-full h-7 text-[8px] font-bold uppercase tracking-widest text-slate-500 border-slate-200"
+                    >
+                      Cancel Editing Draft
+                    </Button>
+                  )}
+                </div>
 
+              </CardContent>
+            </Card>
+
+            {/* Suspended Drafts Ledger (IndexedDB) */}
+            <Card className="border border-border bg-card shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Suspended Drafts
+                    </CardTitle>
+                  </div>
+                  <Badge variant="outline" className="font-mono text-[9px] bg-slate-50 text-slate-600 border-slate-200">
+                    {drafts.length} Drafts
+                  </Badge>
+                </div>
+                <CardDescription className="text-[10px] text-muted-foreground mt-0.5">
+                  Offline transaction drafts stored in IndexedDB.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 overflow-y-auto max-h-[180px] custom-scrollbar">
+                {drafts.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">No suspended drafts</p>
+                    <p className="text-[9px] mt-0.5 text-slate-400">Build a cart and click "Save as Draft" to suspend a sale.</p>
+                  </div>
+                ) : (
+                  drafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className={`p-3 border-b border-border/50 flex flex-col gap-2 transition duration-150 text-xxs ${
+                        loadedDraftId === draft.id ? 'bg-primary/5 border-l-2 border-l-primary' : 'bg-slate-50/10'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-1">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-800 text-[11px] truncate block">
+                            {draft.customerName || 'Walk-in Customer'}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground mt-0.5 block font-mono">
+                            {draft.cartItems.length} items · {draft.paymentMethod}
+                            {draft.prescriptionId && (
+                              <span className="text-primary font-bold ml-1">
+                                (Rx: {draft.prescriptionId})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <span className="text-[8px] text-muted-foreground font-mono shrink-0">
+                          {new Date(draft.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      
+                      <div className="flex gap-2 justify-between items-center">
+                        <span className="text-[9px] text-muted-foreground truncate max-w-[100px]">
+                          By: {draft.operatorName.split(' ')[0]}
+                        </span>
+                        <div className="flex gap-2 items-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleLoadDraft(draft)}
+                            className="h-5 px-2 text-[8px] font-bold uppercase tracking-wider hover:bg-primary/5 hover:text-primary border-slate-200"
+                          >
+                            Load
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDraft(draft.id)}
+                            className="p-1 rounded hover:bg-destructive/5 text-slate-400 hover:text-destructive transition duration-150"
+                            title="Delete draft"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
 
@@ -1053,15 +1476,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           isOpen={isReceiptModalOpen}
           onClose={() => setIsReceiptModalOpen(false)}
           receiptData={selectedReceiptForModal ? {
-            id: selectedReceiptForModal.id,
-            items: selectedReceiptForModal.items,
-            totalAmount: selectedReceiptForModal.totalAmount,
-            paymentMethod: selectedReceiptForModal.paymentMethod,
-            timestamp: selectedReceiptForModal.timestamp,
-            branchName: selectedReceiptForModal.branchName,
-            cashierName: currentUser?.name || 'Staff',
-            discountApplied: selectedReceiptForModal.discountApplied,
-            originalAmount: selectedReceiptForModal.originalAmount
+            ...selectedReceiptForModal,
+            cashierName: currentUser?.name || 'Staff'
           } : null}
         />
       </div>

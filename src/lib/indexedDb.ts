@@ -1,6 +1,7 @@
 const DB_NAME = 'PharmCarePOSDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'cart_sessions';
+const DRAFTS_STORE = 'transaction_drafts';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -18,6 +19,9 @@ function openDB(): Promise<IDBDatabase> {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(DRAFTS_STORE)) {
+        db.createObjectStore(DRAFTS_STORE);
       }
     };
   });
@@ -94,5 +98,85 @@ export async function clearCartSession(key: string): Promise<void> {
     });
   } catch (err) {
     console.error('IndexedDB clearCartSession failed:', err);
+  }
+}
+
+/**
+ * Retrieve all saved transaction drafts from IndexedDB.
+ */
+export async function getAllDrafts<T>(): Promise<{ key: string; value: T }[]> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(DRAFTS_STORE, 'readonly');
+      const store = transaction.objectStore(DRAFTS_STORE);
+      const request = store.openCursor();
+      const results: { key: string; value: T }[] = [];
+
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+        if (cursor) {
+          results.push({ key: cursor.key as string, value: cursor.value as T });
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (err) {
+    console.error('IndexedDB getAllDrafts failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Store a transaction draft in IndexedDB.
+ */
+export async function saveDraft<T>(key: string, value: T): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(DRAFTS_STORE, 'readwrite');
+      const store = transaction.objectStore(DRAFTS_STORE);
+      const request = store.put(value, key);
+
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (err) {
+    console.error('IndexedDB saveDraft failed:', err);
+  }
+}
+
+/**
+ * Delete a transaction draft from IndexedDB.
+ */
+export async function deleteDraft(key: string): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(DRAFTS_STORE, 'readwrite');
+      const store = transaction.objectStore(DRAFTS_STORE);
+      const request = store.delete(key);
+
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (err) {
+    console.error('IndexedDB deleteDraft failed:', err);
   }
 }

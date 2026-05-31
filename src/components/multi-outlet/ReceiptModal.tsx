@@ -28,6 +28,13 @@ interface ReceiptData {
     discountAmount: number;
   };
   originalAmount?: number;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  prescriptionId?: string;
+  doctorName?: string;
+  dosageInstructions?: string;
+  billingNotes?: string;
 }
 
 interface ReceiptModalProps {
@@ -170,6 +177,30 @@ const ReceiptBody: React.FC<ReceiptBodyProps> = ({ data, printMode = false }) =>
             </span>
           )}
         </div>
+        {data.customerName && (
+          <div className="flex justify-between">
+            <span className={printMode ? 'font-bold' : 'font-semibold text-gray-600'}>Customer:</span>
+            <span>{data.customerName}{data.customerPhone ? ` (${data.customerPhone})` : ''}</span>
+          </div>
+        )}
+        {data.prescriptionId && (
+          <div className="flex justify-between">
+            <span className={printMode ? 'font-bold' : 'font-semibold text-gray-600'}>Rx ID:</span>
+            <span>{data.prescriptionId}{data.doctorName ? ` (Dr. ${data.doctorName.replace(/^Dr\.\s+/i, '')})` : ''}</span>
+          </div>
+        )}
+        {data.dosageInstructions && (
+          <div className="text-left mt-1 text-[11px] leading-tight">
+            <span className={printMode ? 'font-bold' : 'font-semibold text-gray-600'}>Dosage:</span>{' '}
+            <span className="italic text-gray-600">{data.dosageInstructions}</span>
+          </div>
+        )}
+        {data.billingNotes && (
+          <div className="text-left mt-1 text-[11px] leading-tight">
+            <span className={printMode ? 'font-bold' : 'font-semibold text-gray-600'}>Billing Note:</span>{' '}
+            <span className="text-gray-600">{data.billingNotes}</span>
+          </div>
+        )}
       </div>
 
       <DashedDivider />
