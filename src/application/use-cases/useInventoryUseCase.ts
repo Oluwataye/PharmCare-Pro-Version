@@ -16,7 +16,7 @@ export const useInventoryUseCase = () => {
     setIsLoading(true);
     try {
       const data = await inventoryRepo.getInventory();
-      setRawInventory(data);
+      setRawInventory([...data]);
     } catch (err) {
       console.error("Failed to load inventory:", err);
     } finally {

@@ -17,7 +17,7 @@ export class MockInventoryRepository implements IInventoryRepository {
     if (branchId && branchId !== 'all') {
       return _inventoryDb.filter(item => item.branchId === branchId);
     }
-    return _inventoryDb;
+    return [..._inventoryDb];
   }
 
   async updateStock(branchId: string, sku: string, deltaQty: number): Promise<void> {
