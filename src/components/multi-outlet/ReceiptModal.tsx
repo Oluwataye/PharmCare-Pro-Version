@@ -16,7 +16,12 @@ interface ReceiptData {
   id: string;
   items: ReceiptItem[];
   totalAmount: number;
-  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER' | 'MIXED';
+  splitPayments?: {
+    cashAmount: number;
+    otherMethod: 'POS' | 'TRANSFER';
+    otherAmount: number;
+  };
   timestamp: string;
   branchName: string;
   branchLocation?: string;
@@ -86,6 +91,11 @@ const PAYMENT_BADGE: Record<
     label: 'Bank Transfer',
     className:
       'bg-purple-100 text-purple-800 border border-purple-300',
+  },
+  MIXED: {
+    label: 'Mixed Payment',
+    className:
+      'bg-amber-100 text-amber-800 border border-amber-300',
   },
 };
 
@@ -177,6 +187,18 @@ const ReceiptBody: React.FC<ReceiptBodyProps> = ({ data, printMode = false }) =>
             </span>
           )}
         </div>
+        {data.paymentMethod === 'MIXED' && data.splitPayments && (
+          <div className="pl-4 text-[11px] leading-tight space-y-0.5 mt-1 border-l border-amber-300/40">
+            <div className="flex justify-between text-gray-600">
+              <span>Cash Portion:</span>
+              <span className="font-mono">{formatNaira(data.splitPayments.cashAmount)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>{data.splitPayments.otherMethod} Portion:</span>
+              <span className="font-mono">{formatNaira(data.splitPayments.otherAmount)}</span>
+            </div>
+          </div>
+        )}
         {data.customerName && (
           <div className="flex justify-between">
             <span className={printMode ? 'font-bold' : 'font-semibold text-gray-600'}>Customer:</span>

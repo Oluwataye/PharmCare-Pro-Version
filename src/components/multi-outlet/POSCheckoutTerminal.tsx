@@ -43,7 +43,7 @@ import {
   Receipt, ArrowLeft, CreditCard, Coins,
   ShieldCheck, Plus, Minus, Trash2, User,
   FileText, ChevronDown, ChevronUp, Stethoscope, Zap,
-  Package, Tag, Clock, Loader2
+  Package, Tag, Clock, Loader2, Calculator
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -90,7 +90,9 @@ export interface POSTransactionDraft {
   billingNotes: string;
   discountCode: string;
   appliedDiscount: Discount | null;
-  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER' | 'MIXED';
+  mixedCashAmount?: string;
+  mixedOtherMethod?: 'POS' | 'TRANSFER';
   timestamp: string;
 }
 
@@ -106,7 +108,9 @@ export interface CheckoutFormState {
   appliedDiscount: Discount | null;
   discountError: string;
   discountSuccess: string;
-  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER' | 'MIXED';
+  mixedCashAmount?: string;
+  mixedOtherMethod?: 'POS' | 'TRANSFER';
 }
 
 export interface POSCheckoutTerminalProps {
@@ -669,12 +673,13 @@ const POSOrderSummary: React.FC<POSOrderSummaryProps> = ({
     return Math.max(0, subtotal - formState.appliedDiscount.value);
   }, [subtotal, formState.appliedDiscount]);
 
-  const PAYMENT_METHODS: Array<'CASH' | 'POS' | 'TRANSFER'> = ['CASH', 'POS', 'TRANSFER'];
+  const PAYMENT_METHODS: Array<'CASH' | 'POS' | 'TRANSFER' | 'MIXED'> = ['CASH', 'POS', 'TRANSFER', 'MIXED'];
 
   const PAYMENT_ICONS = {
     CASH: <Coins className="h-3.5 w-3.5" />,
     POS: <CreditCard className="h-3.5 w-3.5" />,
-    TRANSFER: <Zap className="h-3.5 w-3.5" />
+    TRANSFER: <Zap className="h-3.5 w-3.5" />,
+    MIXED: <Calculator className="h-3.5 w-3.5" />
   };
 
   return (
@@ -749,7 +754,7 @@ const POSOrderSummary: React.FC<POSOrderSummaryProps> = ({
           <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground">
             Payment Gateway
           </label>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             {PAYMENT_METHODS.map((method) => (
               <button
                 key={method}
@@ -769,6 +774,54 @@ const POSOrderSummary: React.FC<POSOrderSummaryProps> = ({
             ))}
           </div>
         </div>
+
+        {formState.paymentMethod === 'MIXED' && (
+          <div className="space-y-3 p-3.5 rounded-xl border border-border bg-slate-50/50 animate-in fade-in slide-in-from-top-1 duration-200">
+            <h4 className="text-[9px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+              <Calculator className="h-3 w-3 text-primary" />
+              Configure Mixed Payment
+            </h4>
+            
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label htmlFor="mixed-cash-amount" className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Cash Portion (₦)
+                </label>
+                <input
+                  id="mixed-cash-amount"
+                  type="number"
+                  value={formState.mixedCashAmount || ''}
+                  onChange={(e) => onFormStateChange({ mixedCashAmount: e.target.value })}
+                  placeholder="e.g. 2000"
+                  className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
+                  min="0"
+                  max={netTotal}
+                />
+              </div>
+              <div>
+                <label htmlFor="mixed-other-method" className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Other Method
+                </label>
+                <select
+                  id="mixed-other-method"
+                  value={formState.mixedOtherMethod || 'POS'}
+                  onChange={(e) => onFormStateChange({ mixedOtherMethod: e.target.value as 'POS' | 'TRANSFER' })}
+                  className="h-8 w-full rounded-lg border border-border bg-card px-2 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                >
+                  <option value="POS">POS / CARD</option>
+                  <option value="TRANSFER">BANK TRANSFER</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-border/40 flex justify-between items-center text-[10px]">
+              <span className="text-muted-foreground font-semibold">Remaining ({formState.mixedOtherMethod || 'POS'}):</span>
+              <span className="font-mono font-black text-primary">
+                {formatNaira(Math.max(0, netTotal - (parseFloat(formState.mixedCashAmount || '') || 0)))}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Status alerts */}
         {saleError && (
@@ -1025,7 +1078,9 @@ export const POSCheckoutTerminal: React.FC<POSCheckoutTerminalProps> = ({
       appliedDiscount: null,
       discountError: '',
       discountSuccess: '',
-      paymentMethod: 'CASH'
+      paymentMethod: 'CASH',
+      mixedCashAmount: '',
+      mixedOtherMethod: 'POS'
     });
   }, [onCartChange, onFormStateChange]);
 

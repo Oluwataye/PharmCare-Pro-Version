@@ -35,7 +35,12 @@ interface SimulatedReceipt {
   id: string;
   items: ReceiptItem[];
   totalAmount: number;
-  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER' | 'MIXED';
+  splitPayments?: {
+    cashAmount: number;
+    otherMethod: 'POS' | 'TRANSFER';
+    otherAmount: number;
+  };
   timestamp: string;
   branchId: string;
   branchName: string;
@@ -71,7 +76,9 @@ interface TransactionDraft {
   billingNotes: string;
   discountCode: string;
   appliedDiscount: Discount | null;
-  paymentMethod: 'CASH' | 'POS' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'POS' | 'TRANSFER' | 'MIXED';
+  mixedCashAmount?: string;
+  mixedOtherMethod?: 'POS' | 'TRANSFER';
   timestamp: string;
 }
 
@@ -141,7 +148,9 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   // Form states - Register Sale
   const [productSearch, setProductSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'POS' | 'TRANSFER'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'POS' | 'TRANSFER' | 'MIXED'>('CASH');
+  const [mixedCashAmount, setMixedCashAmount] = useState('');
+  const [mixedOtherMethod, setMixedOtherMethod] = useState<'POS' | 'TRANSFER'>('POS');
   const [saleError, setSaleError] = useState('');
   const [saleSuccess, setSaleSuccess] = useState('');
   const [isSubmittingSale, setIsSubmittingSale] = useState(false);
@@ -308,6 +317,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
         discountCode,
         appliedDiscount,
         paymentMethod,
+        mixedCashAmount: paymentMethod === 'MIXED' ? mixedCashAmount : undefined,
+        mixedOtherMethod: paymentMethod === 'MIXED' ? mixedOtherMethod : undefined,
         timestamp: new Date().toISOString()
       };
 
@@ -327,6 +338,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       setAppliedDiscount(null);
       setDiscountSuccess('');
       setDiscountError('');
+      setMixedCashAmount('');
+      setMixedOtherMethod('POS');
       setLoadedDraftId(null);
 
       // Refresh drafts list
@@ -351,6 +364,13 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
     setDiscountCode(draft.discountCode || '');
     setAppliedDiscount(draft.appliedDiscount || null);
     setPaymentMethod(draft.paymentMethod || 'CASH');
+    if (draft.paymentMethod === 'MIXED') {
+      setMixedCashAmount(draft.mixedCashAmount || '');
+      setMixedOtherMethod(draft.mixedOtherMethod || 'POS');
+    } else {
+      setMixedCashAmount('');
+      setMixedOtherMethod('POS');
+    }
     setLoadedDraftId(draft.id);
     setSaleError('');
     setSaleSuccess(`Loaded draft for "${draft.customerName || 'Walk-in Customer'}"`);
@@ -533,17 +553,43 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
   const expectedCashSales = useMemo(() => {
     if (!activeBranchId) return 0;
     return receipts
-      .filter(r => r.branchId === activeBranchId && r.paymentMethod === 'CASH')
-      .reduce((sum, r) => sum + r.totalAmount, 0);
+      .filter(r => r.branchId === activeBranchId)
+      .reduce((sum, r) => {
+        if (r.paymentMethod === 'CASH') {
+          return sum + r.totalAmount;
+        } else if (r.paymentMethod === 'MIXED' && r.splitPayments) {
+          return sum + r.splitPayments.cashAmount;
+        }
+        return sum;
+      }, 0);
   }, [receipts, activeBranchId]);
 
   // Consolidated command stats
   const consolidatedStats = useMemo(() => {
     const list = scopedReceipts;
     const total = list.reduce((sum, r) => sum + r.totalAmount, 0);
-    const cash = list.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + r.totalAmount, 0);
-    const pos = list.filter(r => r.paymentMethod === 'POS').reduce((sum, r) => sum + r.totalAmount, 0);
-    const transfer = list.filter(r => r.paymentMethod === 'TRANSFER').reduce((sum, r) => sum + r.totalAmount, 0);
+    
+    let cash = 0;
+    let pos = 0;
+    let transfer = 0;
+    
+    list.forEach(r => {
+      if (r.paymentMethod === 'CASH') {
+        cash += r.totalAmount;
+      } else if (r.paymentMethod === 'POS') {
+        pos += r.totalAmount;
+      } else if (r.paymentMethod === 'TRANSFER') {
+        transfer += r.totalAmount;
+      } else if (r.paymentMethod === 'MIXED' && r.splitPayments) {
+        cash += r.splitPayments.cashAmount;
+        if (r.splitPayments.otherMethod === 'POS') {
+          pos += r.splitPayments.otherAmount;
+        } else if (r.splitPayments.otherMethod === 'TRANSFER') {
+          transfer += r.splitPayments.otherAmount;
+        }
+      }
+    });
+
     const warnings = scopedReconciliations.filter(r => r.status !== 'balanced').length;
 
     return { total, cash, pos, transfer, warnings };
@@ -556,7 +602,20 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       const totalSales = branchReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
       
       const paymentSplit = branchReceipts.reduce((acc, r) => {
-        acc[r.paymentMethod] += r.totalAmount;
+        if (r.paymentMethod === 'CASH') {
+          acc.CASH += r.totalAmount;
+        } else if (r.paymentMethod === 'POS') {
+          acc.POS += r.totalAmount;
+        } else if (r.paymentMethod === 'TRANSFER') {
+          acc.TRANSFER += r.totalAmount;
+        } else if (r.paymentMethod === 'MIXED' && r.splitPayments) {
+          acc.CASH += r.splitPayments.cashAmount;
+          if (r.splitPayments.otherMethod === 'POS') {
+            acc.POS += r.splitPayments.otherAmount;
+          } else if (r.splitPayments.otherMethod === 'TRANSFER') {
+            acc.TRANSFER += r.splitPayments.otherAmount;
+          }
+        }
         return acc;
       }, { CASH: 0, POS: 0, TRANSFER: 0 });
 
@@ -580,6 +639,18 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       return;
     }
 
+    if (paymentMethod === 'MIXED') {
+      const cashAmt = parseFloat(mixedCashAmount);
+      if (isNaN(cashAmt) || cashAmt <= 0) {
+        setSaleError('Please enter a valid cash amount greater than zero.');
+        return;
+      }
+      if (cashAmt >= discountedSaleAmount) {
+        setSaleError('Cash amount must be less than the net total amount.');
+        return;
+      }
+    }
+
     setIsSubmittingSale(true);
     setSaleError('');
     setSaleSuccess('');
@@ -601,6 +672,11 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
         })),
         totalAmount: discountedSaleAmount,
         paymentMethod,
+        splitPayments: paymentMethod === 'MIXED' ? {
+          cashAmount: parseFloat(mixedCashAmount) || 0,
+          otherMethod: mixedOtherMethod,
+          otherAmount: Math.max(0, discountedSaleAmount - (parseFloat(mixedCashAmount) || 0))
+        } : undefined,
         timestamp: new Date().toISOString(), // Use full ISO timestamp for ReceiptModal formatting
         branchId: activeBranchId,
         branchName: activeBranchName,
@@ -649,6 +725,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
       setDoctorName('');
       setDosageInstructions('');
       setBillingNotes('');
+      setMixedCashAmount('');
+      setMixedOtherMethod('POS');
 
       // 3. Trigger inventory re-fetch
       await refetch();
@@ -1141,8 +1219,8 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                   <label className="block text-xxs font-bold uppercase tracking-wider text-muted-foreground">
                     Payment Gateway
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(['CASH', 'POS', 'TRANSFER'] as const).map((method) => (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(['CASH', 'POS', 'TRANSFER', 'MIXED'] as const).map((method) => (
                       <button
                         key={method}
                         type="button"
@@ -1158,6 +1236,52 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
                     ))}
                   </div>
                 </div>
+
+                {paymentMethod === 'MIXED' && (
+                  <div className="space-y-3 p-3.5 rounded-xl border border-border bg-slate-50/50 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <h4 className="text-[9px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                      <Calculator className="h-3 w-3 text-primary" />
+                      Configure Mixed Payment
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                          Cash Portion (₦)
+                        </label>
+                        <input
+                          type="number"
+                          value={mixedCashAmount}
+                          onChange={(e) => setMixedCashAmount(e.target.value)}
+                          placeholder="e.g. 2000"
+                          className="h-8 w-full rounded-lg border border-border bg-card px-2.5 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
+                          min="0"
+                          max={discountedSaleAmount}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                          Other Method
+                        </label>
+                        <select
+                          value={mixedOtherMethod}
+                          onChange={(e) => setMixedOtherMethod(e.target.value as 'POS' | 'TRANSFER')}
+                          className="h-8 w-full rounded-lg border border-border bg-card px-2 text-xxs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                        >
+                          <option value="POS">POS / CARD</option>
+                          <option value="TRANSFER">BANK TRANSFER</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/40 flex justify-between items-center text-[10px]">
+                      <span className="text-muted-foreground font-semibold">Remaining ({mixedOtherMethod}):</span>
+                      <span className="font-mono font-black text-primary">
+                        {formatNaira(Math.max(0, discountedSaleAmount - (parseFloat(mixedCashAmount) || 0)))}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Alerts */}
                 {saleError && (
@@ -1752,6 +1876,7 @@ export const SalesCashPanel: React.FC<SalesCashPanelProps> = ({ onInventoryMutat
           items: selectedReceiptForModal.items,
           totalAmount: selectedReceiptForModal.totalAmount,
           paymentMethod: selectedReceiptForModal.paymentMethod,
+          splitPayments: selectedReceiptForModal.splitPayments,
           timestamp: selectedReceiptForModal.timestamp,
           branchName: selectedReceiptForModal.branchName,
           cashierName: currentUser?.name || 'Staff',
