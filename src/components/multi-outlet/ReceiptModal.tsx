@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X, Receipt, CheckCircle2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -371,12 +372,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   if (!isOpen || !receiptData) return null;
 
   const handlePrint = () => {
+    const el = printRef.current;
+    if (!el) return;
+    // Temporarily show the portal-mounted print div so window.print() picks it up.
+    // Without this, the element's inline display:none would override the @media print rule
+    // in some browsers.
+    el.style.display = 'block';
     window.print();
+    el.style.display = 'none';
   };
 
   return (
     <>
-      {/* ── Print-only styles injected via a <style> tag ─────────────────── */}
+      {/* ── Print-only styles ────────────────────────────────────────────── */}
+      {/* The print div is portalled directly onto <body> so it becomes a    */}
+      {/* direct body child. The CSS rule hides all other body children      */}
+      {/* (including #root) and shows only #pharmcare-print-receipt.         */}
       <style>{`
         @media print {
           body > *:not(#pharmcare-print-receipt) {
@@ -384,25 +395,29 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           }
           #pharmcare-print-receipt {
             display: block !important;
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
-            width: 80mm;          /* standard thermal receipt width */
+            width: 80mm;
             padding: 8px;
             background: white;
+            font-family: monospace;
           }
         }
       `}</style>
 
-      {/* ── Print-only receipt (hidden on screen) ─────────────────────────── */}
-      <div
-        id="pharmcare-print-receipt"
-        ref={printRef}
-        style={{ display: 'none' }}
-        aria-hidden="true"
-      >
-        <ReceiptBody data={receiptData} printMode />
-      </div>
+      {/* ── Print-only receipt — portalled to <body> (hidden on screen) ──── */}
+      {createPortal(
+        <div
+          id="pharmcare-print-receipt"
+          ref={printRef}
+          style={{ display: 'none' }}
+          aria-hidden="true"
+        >
+          <ReceiptBody data={receiptData} printMode />
+        </div>,
+        document.body
+      )}
 
       {/* ── Screen overlay + modal ────────────────────────────────────────── */}
       <div
